@@ -4,7 +4,7 @@
     {
       "type": 1,
       "content": {
-        "json": "# Central Threat Intelligence - Indicator Management\n\nThis workbook helps security teams efficiently manage threat intelligence indicators. It provides a streamlined workflow for submitting, reviewing, and tracking threat indicators across various security products.\n\n> **Note:** This is one of three workbooks in the CTI solution. Also see the [CTI Dashboard](https://portal.azure.com/#blade/Microsoft_Azure_Monitoring/AzureMonitoringBrowseBlade/workbooks/name/cti-dashboard) and [CTI Integration](https://portal.azure.com/#blade/Microsoft_Azure_Monitoring/AzureMonitoringBrowseBlade/workbooks/name/cti-integration) workbooks."
+        "json": "# Central Threat Intelligence V3 - Indicator Management\n\nThis workbook helps security teams efficiently manage threat intelligence indicators. It provides a streamlined workflow for submitting, reviewing, and targeting threat indicators across various Microsoft 365 security products.\n\n> **Note:** This is the primary workbook in the CTI V3 solution. It provides management of IoCs and targeting them to specific Microsoft security products."
       },
       "name": "Introduction"
     },
@@ -25,7 +25,7 @@
               "additionalResourceOptions": [],
               "showDefault": false
             },
-            "jsonData": "[\n    { \"value\": \"ManualSubmission\", \"label\": \"Manual Submission\" },\n    { \"value\": \"IndicatorStatus\", \"label\": \"Indicator Status\" },\n    { \"value\": \"RecentSubmissions\", \"label\": \"Recent Submissions\" }\n]"
+            "jsonData": "[\n    { \"value\": \"ManualSubmission\", \"label\": \"Manual Submission\" },\n    { \"value\": \"IndicatorStatus\", \"label\": \"Indicator Status\" },\n    { \"value\": \"Distribution\", \"label\": \"Distribution Management\" },\n    { \"value\": \"RecentSubmissions\", \"label\": \"Recent Submissions\" }\n]"
           },
           {
             "id": "7af26c4a-a690-4922-87e3-42c58d7c5629",
@@ -142,6 +142,846 @@
                     "version": "KqlParameterItem/1.0",
                     "parameters": [
                       {
+                        "id": "1f5f9d3b-7c50-4e8a-9a7a-3cee65d9a9dc",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "DistributionTargets",
+                        "label": "Distribution Targets",
+                        "type": 2,
+                        "description": "Select which products to distribute to",
+                        "isRequired": true,
+                        "multiSelect": true,
+                        "quote": "'",
+                        "delimiter": ",",
+                        "typeSettings": {
+                          "additionalResourceOptions": [],
+                          "showDefault": false
+                        },
+                        "jsonData": "[\n    { \"value\": \"Microsoft Defender XDR\", \"label\": \"Microsoft Defender XDR\" },\n    { \"value\": \"Microsoft Sentinel\", \"label\": \"Microsoft Sentinel\" },\n    { \"value\": \"Exchange Online\", \"label\": \"Exchange Online\" },\n    { \"value\": \"Microsoft Security Copilot\", \"label\": \"Microsoft Security Copilot\" },\n    { \"value\": \"Entra ID\", \"label\": \"Entra ID\" }\n]"
+                      },
+                      {
+                        "id": "09c96c3d-2b0d-4a2c-bd5e-1a5dd2778dc4",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "UpdateDistributionButton",
+                        "type": 1,
+                        "value": "Update Distribution",
+                        "typeSettings": {
+                          "parameterMode": "button"
+                        }
+                      }
+                    ],
+                    "style": "formVertical",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "DistributionTargetsSelection"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Update distribution targets for the selected indicator\r\nlet indicatorId = \"{SelectedIndicatorId}\";\r\nlet newDistributionTargets = \"{DistributionTargets}\";\r\n\r\n// First get the current indicator details\r\nlet indicator = \r\nCTI_ThreatIntelIndicator_CL\r\n| where IndicatorId_g == indicatorId\r\n| project IndicatorId_g, Type_s, Value_s, Current_Distribution = DistributionTargets_s;\r\n\r\nprint \r\n    IndicatorId = indicatorId,\r\n    CurrentDistribution = indicator,\r\n    NewDistribution = newDistributionTargets;\r\n\r\n// This would call the actual data update function\r\n// In a real workbook, you would use the Data function to update\r\nprint UpdateResult = strcat(\"Updated distribution targets for indicator ID: \", indicatorId);\r\nprint ActionNeeded = \"The CTI-ThreatIntelSync-Connector Logic App will automatically sync this change to the type-specific tables at its next scheduled run (within 15 minutes).\";\r\n",
+                    "size": 0,
+                    "title": "Update Distribution",
+                    "timeContext": {
+                      "durationMs": 86400000
+                    },
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "conditionalVisibility": {
+                    "parameterName": "UpdateDistributionButton",
+                    "comparison": "isNotEqualTo"
+                  },
+                  "name": "UpdateDistributionQuery"
+                }
+              ],
+              "conditionalVisibility": {
+                "parameterName": "ActionType",
+                "comparison": "isEqualTo",
+                "value": "distribution"
+              }
+            },
+            "name": "DistributionManagement"
+          },
+          {
+            "type": 12,
+            "content": {
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "title": "Expire/Deactivate",
+              "items": [
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Expire/deactivate the selected indicator\r\nlet indicatorId = \"{SelectedIndicatorId}\";\r\n\r\n// First get the current indicator details\r\nlet indicator = \r\nCTI_ThreatIntelIndicator_CL\r\n| where IndicatorId_g == indicatorId\r\n| project IndicatorId_g, Type_s, Value_s;\r\n\r\nprint \r\n    IndicatorId = indicatorId,\r\n    IndicatorDetails = indicator;\r\n\r\n// This would call the actual data update function\r\n// In a real workbook, you would use the Data function to update\r\nprint DeactivationResult = strcat(\"Deactivated indicator ID: \", indicatorId);\r\nprint ActionNeeded = \"The CTI-ThreatIntelSync-Connector Logic App will automatically sync this change to the type-specific tables at its next scheduled run (within 15 minutes). This will also trigger removal of this indicator from all distribution targets.\";\r\n",
+                    "size": 0,
+                    "title": "Deactivate Indicator",
+                    "timeContext": {
+                      "durationMs": 86400000
+                    },
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "conditionalVisibility": {
+                    "parameterName": "ActionButton",
+                    "comparison": "isNotEqualTo"
+                  },
+                  "name": "DeactivateIndicatorQuery"
+                }
+              ],
+              "conditionalVisibility": {
+                "parameterName": "ActionType",
+                "comparison": "isEqualTo",
+                "value": "expire"
+              }
+            },
+            "name": "ExpireDeactivate"
+          },
+          {
+            "type": 12,
+            "content": {
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "title": "Extend Expiration",
+              "items": [
+                {
+                  "type": 9,
+                  "content": {
+                    "version": "KqlParameterItem/1.0",
+                    "parameters": [
+                      {
+                        "id": "bc75d63f-d456-4ec8-9e5d-39f4fa3e4133",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "ExtendDays",
+                        "label": "Days to Add",
+                        "type": 1,
+                        "description": "How many days to extend the expiration",
+                        "isRequired": true,
+                        "value": "30"
+                      },
+                      {
+                        "id": "7a8f9d8e-5c6b-4e2f-9d19-6e8d37a1f5d0",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "ExtendExpirationButton",
+                        "type": 1,
+                        "value": "Extend Expiration",
+                        "typeSettings": {
+                          "parameterMode": "button"
+                        }
+                      }
+                    ],
+                    "style": "formVertical",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "ExtendExpirationParams"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Extend expiration for the selected indicator\r\nlet indicatorId = \"{SelectedIndicatorId}\";\r\nlet daysToExtend = {ExtendDays};\r\nlet now = now();\r\n\r\n// First get the current indicator details\r\nlet indicator = \r\nCTI_ThreatIntelIndicator_CL\r\n| where IndicatorId_g == indicatorId\r\n| project IndicatorId_g, Type_s, Value_s, CurrentExpiration = ValidUntil_t;\r\n\r\n// Calculate new expiration date\r\nlet currentExpiration = toscalar(indicator | project CurrentExpiration);\r\nlet newExpiration = iff(currentExpiration < now(), now() + daysToExtend*1d, currentExpiration + daysToExtend*1d);\r\n\r\nprint \r\n    IndicatorId = indicatorId,\r\n    CurrentExpiration = currentExpiration,\r\n    NewExpiration = newExpiration;\r\n\r\n// This would call the actual data update function\r\n// In a real workbook, you would use the Data function to update\r\nprint UpdateResult = strcat(\"Extended expiration date for indicator ID: \", indicatorId);\r\nprint ActionNeeded = \"The CTI-ThreatIntelSync-Connector Logic App will automatically sync this change to the type-specific tables at its next scheduled run (within 15 minutes).\";\r\n",
+                    "size": 0,
+                    "title": "Extend Expiration",
+                    "timeContext": {
+                      "durationMs": 86400000
+                    },
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "conditionalVisibility": {
+                    "parameterName": "ExtendExpirationButton",
+                    "comparison": "isNotEqualTo"
+                  },
+                  "name": "ExtendExpirationQuery"
+                }
+              ],
+              "conditionalVisibility": {
+                "parameterName": "ActionType",
+                "comparison": "isEqualTo",
+                "value": "extend"
+              }
+            },
+            "name": "ExtendExpiration"
+          },
+          {
+            "type": 12,
+            "content": {
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "title": "Reactivate Expired",
+              "items": [
+                {
+                  "type": 9,
+                  "content": {
+                    "version": "KqlParameterItem/1.0",
+                    "parameters": [
+                      {
+                        "id": "3a2f4d5e-8b6c-4e1d-9a7f-5c8d3e4f2b1a",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "ReactivateDays",
+                        "label": "New Expiration (Days)",
+                        "type": 1,
+                        "description": "Days until new expiration date",
+                        "isRequired": true,
+                        "value": "30"
+                      },
+                      {
+                        "id": "9c8d7b6a-5e4f-3c2d-1a9b-8e7f6d5c4b3a",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "ReactivateButton",
+                        "type": 1,
+                        "value": "Reactivate Indicator",
+                        "typeSettings": {
+                          "parameterMode": "button"
+                        }
+                      }
+                    ],
+                    "style": "formVertical",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "ReactivateParams"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Reactivate expired indicator\r\nlet indicatorId = \"{SelectedIndicatorId}\";\r\nlet newExpirationDays = {ReactivateDays};\r\nlet now = now();\r\nlet newExpiration = now() + newExpirationDays*1d;\r\n\r\n// First get the current indicator details\r\nlet indicator = \r\nCTI_ThreatIntelIndicator_CL\r\n| where IndicatorId_g == indicatorId\r\n| project IndicatorId_g, Type_s, Value_s, CurrentExpiration = ValidUntil_t, IsActive = Active_b;\r\n\r\nprint \r\n    IndicatorId = indicatorId,\r\n    IndicatorDetails = indicator,\r\n    CurrentStatus = \"Expired/Inactive\",\r\n    NewExpiration = newExpiration;\r\n\r\n// This would call the actual data update function\r\n// In a real workbook, you would use the Data function to update\r\nprint UpdateResult = strcat(\"Reactivated indicator ID: \", indicatorId, \" with new expiration date: \", newExpiration);\r\nprint ActionNeeded = \"The CTI-ThreatIntelSync-Connector Logic App will automatically sync this change to the type-specific tables at its next scheduled run (within 15 minutes). This will also trigger distribution to the previously configured targets.\";\r\n",
+                    "size": 0,
+                    "title": "Reactivate Indicator",
+                    "timeContext": {
+                      "durationMs": 86400000
+                    },
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "conditionalVisibility": {
+                    "parameterName": "ReactivateButton",
+                    "comparison": "isNotEqualTo"
+                  },
+                  "name": "ReactivateIndicatorQuery"
+                }
+              ],
+              "conditionalVisibility": {
+                "parameterName": "ActionType",
+                "comparison": "isEqualTo",
+                "value": "reactivate"
+              }
+            },
+            "name": "ReactivateExpired"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// System metrics - indicator processing rate\r\n// Get ThreatIntelIndicator counts over time\r\nCTI_ThreatIntelIndicator_CL\r\n| summarize count() by bin(TimeGenerated, 1d), Type_s\r\n| order by TimeGenerated asc",
+              "size": 0,
+              "title": "Indicator Growth Rate",
+              "timeContext": {
+                "durationMs": 0
+              },
+              "timeContextFromParameter": "TimeRange",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "areachart",
+              "chartSettings": {
+                "seriesLabelSettings": [
+                  {
+                    "seriesName": "ip-addr",
+                    "label": "IP Address",
+                    "color": "blue"
+                  },
+                  {
+                    "seriesName": "domain-name",
+                    "label": "Domain",
+                    "color": "orange"
+                  },
+                  {
+                    "seriesName": "url",
+                    "label": "URL",
+                    "color": "green"
+                  },
+                  {
+                    "seriesName": "file-sha256",
+                    "label": "SHA256",
+                    "color": "purple"
+                  },
+                  {
+                    "seriesName": "file-sha1",
+                    "label": "SHA1",
+                    "color": "pink"
+                  },
+                  {
+                    "seriesName": "file-md5",
+                    "label": "MD5",
+                    "color": "red"
+                  }
+                ]
+              }
+            },
+            "customWidth": "50",
+            "name": "IndicatorGrowthRate"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Status summary for indicators\r\nlet expiryThreshold = now()+7d;\r\nlet recentThreshold = now()-7d;\r\nlet expiredThreshold = now()-30d;\r\n\r\n// Get counts for different statuses\r\nCTI_ThreatIntelIndicator_CL\r\n| extend StatusCategory = case(\r\n    Active_b == true and ValidUntil_t between (now() .. expiryThreshold), \"Expiring Soon\",\r\n    Active_b == true, \"Active\",\r\n    ValidUntil_t between (expiredThreshold .. now()), \"Recently Expired\",\r\n    \"Expired\")\r\n| summarize Count = count() by StatusCategory, Type_s\r\n| order by StatusCategory asc",
+              "size": 0,
+              "title": "Indicator Status Summary",
+              "timeContext": {
+                "durationMs": 0
+              },
+              "timeContextFromParameter": "TimeRange",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "Count",
+                    "formatter": 8,
+                    "formatOptions": {
+                      "palette": "blue"
+                    },
+                    "numberFormat": {
+                      "unit": 17,
+                      "options": {
+                        "style": "decimal",
+                        "useGrouping": true
+                      }
+                    }
+                  }
+                ],
+                "sortBy": [
+                  {
+                    "itemKey": "StatusCategory",
+                    "sortOrder": 0
+                  }
+                ],
+                "labelSettings": [
+                  {
+                    "columnId": "StatusCategory",
+                    "label": "Status"
+                  },
+                  {
+                    "columnId": "Type_s",
+                    "label": "Indicator Type"
+                  },
+                  {
+                    "columnId": "Count",
+                    "label": "Count"
+                  }
+                ]
+              }
+            },
+            "customWidth": "50",
+            "name": "IndicatorStatusSummary"
+          }
+        ],
+        "conditionalVisibility": {
+          "parameterName": "WorkbookTab",
+          "comparison": "isEqualTo",
+          "value": "IndicatorStatus"
+        }
+      },
+      "name": "IndicatorStatusTab"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "title": "Distribution Management",
+        "items": [
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "parameters": [
+                {
+                  "id": "5da5faf0-f9ed-4d9e-a553-73c54ab2b2d9",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "DistributionTarget",
+                  "label": "Target System",
+                  "type": 2,
+                  "isRequired": true,
+                  "multiSelect": false,
+                  "quote": "'",
+                  "delimiter": ",",
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  },
+                  "jsonData": "[\n    { \"value\": \"Microsoft Defender XDR\", \"label\": \"Microsoft Defender XDR\" },\n    { \"value\": \"Microsoft Sentinel\", \"label\": \"Microsoft Sentinel\" },\n    { \"value\": \"Exchange Online\", \"label\": \"Exchange Online\" },\n    { \"value\": \"Microsoft Security Copilot\", \"label\": \"Microsoft Security Copilot\" },\n    { \"value\": \"Entra ID\", \"label\": \"Entra ID\" }\n]"
+                }
+              ],
+              "style": "pills",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces"
+            },
+            "name": "DistributionTargetParameter"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "# {DistributionTarget} Configuration\n\nUse this section to configure how threat intelligence is distributed to {DistributionTarget}.\n\n## Connector Status\n\nThe connector for {DistributionTarget} is currently operational. The connector automatically syncs indicators based on the configuration below."
+            },
+            "name": "DistributionTargetHeader"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Distribution configuration for the selected target\r\nlet target = \"{DistributionTarget}\";\r\n\r\n// Count indicators distributed to the target\r\nlet indicatorsByType = \r\nCTI_ThreatIntelIndicator_CL\r\n| where Active_b == true and DistributionTargets_s has target\r\n| summarize Count = count() by Type_s;\r\n\r\n// Map STIX types to friendly names\r\nlet typeMapping = dynamic({\r\n    \"ip-addr\": \"IP Addresses\",\r\n    \"domain-name\": \"Domains\",\r\n    \"url\": \"URLs\",\r\n    \"file-sha256\": \"SHA256 Hashes\",\r\n    \"file-sha1\": \"SHA1 Hashes\",\r\n    \"file-md5\": \"MD5 Hashes\"\r\n});\r\n\r\nindicatorsByType\r\n| extend FriendlyType = tostring(typeMapping[Type_s])\r\n| project Type = coalesce(FriendlyType, Type_s), Count\r\n| order by Count desc",
+              "size": 3,
+              "title": "Indicators Distributed to {DistributionTarget}",
+              "timeContext": {
+                "durationMs": 0
+              },
+              "timeContextFromParameter": "TimeRange",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "tileSettings": {
+                "showBorder": true,
+                "titleContent": {
+                  "columnMatch": "Type",
+                  "formatter": 1
+                },
+                "leftContent": {
+                  "columnMatch": "Count",
+                  "formatter": 12,
+                  "formatOptions": {
+                    "palette": "auto"
+                  },
+                  "numberFormat": {
+                    "unit": 17,
+                    "options": {
+                      "maximumSignificantDigits": 3,
+                      "maximumFractionDigits": 2
+                    }
+                  }
+                }
+              }
+            },
+            "name": "DistributedIndicatorCount"
+          },
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "parameters": [
+                {
+                  "id": "bfc16239-4cde-48ef-8214-60ad2e0e3003",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "AutoApprove",
+                  "label": "Auto-Approve New Indicators",
+                  "type": 10,
+                  "description": "Automatically approve indicators for distribution without manual review",
+                  "isRequired": true,
+                  "value": true,
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  }
+                },
+                {
+                  "id": "c92191f9-26a7-4e10-a614-c3fc3c55afcb",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "MinimumConfidence",
+                  "label": "Minimum Confidence Score",
+                  "type": 2,
+                  "description": "Only distribute indicators meeting this confidence threshold",
+                  "isRequired": true,
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  },
+                  "jsonData": "[\n    { \"value\": \"0\", \"label\": \"Any (0+)\" },\n    { \"value\": \"50\", \"label\": \"Medium (50+)\" },\n    { \"value\": \"75\", \"label\": \"High (75+)\" },\n    { \"value\": \"90\", \"label\": \"Very High (90+)\" }\n]",
+                  "value": "50"
+                },
+                {
+                  "id": "4ec8f821-a3a8-40d2-8f38-78a9bfce82d2",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "AllowedTypes",
+                  "label": "Allowed Indicator Types",
+                  "type": 2,
+                  "description": "Which indicator types to distribute to this target",
+                  "isRequired": true,
+                  "multiSelect": true,
+                  "quote": "'",
+                  "delimiter": ",",
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  },
+                  "jsonData": "[\n    { \"value\": \"ip-addr\", \"label\": \"IP Addresses\" },\n    { \"value\": \"domain-name\", \"label\": \"Domain Names\" },\n    { \"value\": \"url\", \"label\": \"URLs\" },\n    { \"value\": \"file-sha256\", \"label\": \"SHA256 Hashes\" },\n    { \"value\": \"file-sha1\", \"label\": \"SHA1 Hashes\" },\n    { \"value\": \"file-md5\", \"label\": \"MD5 Hashes\" }\n]",
+                  "value": ["ip-addr", "domain-name", "url", "file-sha256", "file-sha1", "file-md5"]
+                },
+                {
+                  "id": "a9e44618-e47b-4bbb-9da8-dca775e26ba3",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "SyncFrequency",
+                  "label": "Sync Frequency",
+                  "type": 2,
+                  "description": "How often to sync indicators to this target",
+                  "isRequired": true,
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  },
+                  "jsonData": "[\n    { \"value\": \"1\", \"label\": \"Every hour\" },\n    { \"value\": \"6\", \"label\": \"Every 6 hours\" },\n    { \"value\": \"12\", \"label\": \"Every 12 hours\" },\n    { \"value\": \"24\", \"label\": \"Daily\" }\n]",
+                  "value": "6"
+                },
+                {
+                  "id": "dfd4c0c7-7c01-452e-a68c-fcc8c4721ccc",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "DefaultAction",
+                  "label": "Default Action",
+                  "type": 2,
+                  "description": "Default action when indicators are matched",
+                  "isRequired": true,
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  },
+                  "jsonData": "[\n    { \"value\": \"Block\", \"label\": \"Block\" },\n    { \"value\": \"Alert\", \"label\": \"Alert Only\" }\n]",
+                  "value": "Block"
+                }
+              ],
+              "style": "formVertical",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces"
+            },
+            "customWidth": "50",
+            "name": "DistributionConfigForm"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "## Distribution Configuration\n\nThe settings in this form control how indicators are distributed to {DistributionTarget}.\n\n### Configuration Notes\n\n- **Auto-Approve**: When enabled, new indicators are automatically approved for distribution without manual review if they meet the confidence threshold\n- **Minimum Confidence**: Only indicators with this confidence score or higher will be distributed\n- **Allowed Types**: Select the indicator types that should be distributed to this target\n- **Sync Frequency**: How often the system should check for new indicators to distribute\n- **Default Action**: The default action when indicators are matched (can be overridden per indicator)\n\n### Target-Specific Notes\n\n**{DistributionTarget}** has the following capabilities and limitations:\n\n| Indicator Type | Support Level | Notes |\n|----------------|---------------|-------|\n| IP Addresses   | Full          | Blocks network connections |\n| Domain Names   | Full          | Blocks DNS resolution |\n| URLs           | Full          | Blocks web requests |\n| File Hashes    | Full          | Blocks file execution |\n\n*Note: Actual capabilities vary by product. Entra ID only supports IP blocking, while Exchange Online supports IP, domain, and URL blocking but not file hashes.*"
+            },
+            "customWidth": "50",
+            "name": "DistributionNotes"
+          },
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "parameters": [
+                {
+                  "id": "80e98cb2-2886-42b3-8a4c-932f6929013a",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "SaveDistributionConfig",
+                  "type": 1,
+                  "value": "Save Configuration",
+                  "typeSettings": {
+                    "parameterMode": "button"
+                  }
+                }
+              ],
+              "style": "formVertical",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces"
+            },
+            "name": "SaveDistributionConfigButton"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Simulate saving the distribution configuration\r\nlet target = \"{DistributionTarget}\";\r\nlet autoApprove = {AutoApprove};\r\nlet minConfidence = {MinimumConfidence};\r\nlet allowedTypes = \"{AllowedTypes}\";\r\nlet syncFrequency = {SyncFrequency};\r\nlet defaultAction = \"{DefaultAction}\";\r\nlet now = now();\r\n\r\n// Build a record of the configuration\r\nlet configData = strcat(\r\n    \"Target: \", target, \", \",\r\n    \"AutoApprove: \", autoApprove, \", \",\r\n    \"MinimumConfidence: \", minConfidence, \", \",\r\n    \"AllowedTypes: \", allowedTypes, \", \",\r\n    \"SyncFrequency: \", syncFrequency, \", \",\r\n    \"DefaultAction: \", defaultAction, \", \",\r\n    \"LastUpdated: \", now\r\n);\r\n\r\n// This configuration would be stored in a table called CTI_DistributionConfig_CL\r\n// In a real workbook, you would use Data function to save this\r\nprint Status = \"Configuration saved successfully\";\r\nprint ConfigSaved = configData;\r\nprint NextSteps = \"The distribution configuration has been updated. The changes will take effect at the next scheduled sync.\";\r\nprint Implementation = \"In a production environment, this would save the configuration to the CTI_DistributionConfig_CL table that the Logic Apps reference.\";",
+              "size": 0,
+              "title": "Configuration Save Status",
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "card"
+            },
+            "conditionalVisibility": {
+              "parameterName": "SaveDistributionConfig",
+              "comparison": "isNotEqualTo",
+              "value": null
+            },
+            "name": "SaveDistributionConfigStatus"
+          }
+        ],
+        "conditionalVisibility": {
+          "parameterName": "WorkbookTab",
+          "comparison": "isEqualTo",
+          "value": "Distribution"
+        }
+      },
+      "name": "DistributionTab"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "title": "Recent Submissions",
+        "items": [
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "parameters": [
+                {
+                  "id": "ff837db0-dbec-472a-bb1d-2068a237e072",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "RecentTimeRange",
+                  "label": "Time Range",
+                  "type": 4,
+                  "description": "Filter to show recent submissions",
+                  "isRequired": true,
+                  "value": {
+                    "durationMs": 604800000
+                  },
+                  "typeSettings": {
+                    "selectableValues": [
+                      {
+                        "durationMs": 300000
+                      },
+                      {
+                        "durationMs": 900000
+                      },
+                      {
+                        "durationMs": 1800000
+                      },
+                      {
+                        "durationMs": 3600000
+                      },
+                      {
+                        "durationMs": 14400000
+                      },
+                      {
+                        "durationMs": 43200000
+                      },
+                      {
+                        "durationMs": 86400000
+                      },
+                      {
+                        "durationMs": 172800000
+                      },
+                      {
+                        "durationMs": 259200000
+                      },
+                      {
+                        "durationMs": 604800000
+                      },
+                      {
+                        "durationMs": 1209600000
+                      },
+                      {
+                        "durationMs": 2419200000
+                      },
+                      {
+                        "durationMs": 2592000000
+                      },
+                      {
+                        "durationMs": 5184000000
+                      }
+                    ],
+                    "allowCustom": true
+                  }
+                }
+              ],
+              "style": "pills",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces"
+            },
+            "name": "RecentSubmissionsParameters"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Get recent manual submissions\r\nCTI_ThreatIntelIndicator_CL\r\n| where Source_s == \"Manual\" and TimeGenerated {RecentTimeRange}\r\n| extend FriendlyType = case(\r\n    Type_s == \"ip-addr\", \"IP Address\",\r\n    Type_s == \"domain-name\", \"Domain\",\r\n    Type_s == \"url\", \"URL\",\r\n    Type_s startswith \"file-\", \"File Hash\",\r\n    Type_s\r\n)\r\n| project TimeGenerated, Type = FriendlyType, Value = Value_s, ThreatType = ThreatType_s, TLP = TLP_s, Confidence = Confidence_d, DistributionTargets = DistributionTargets_s\r\n| order by TimeGenerated desc\r\n",
+              "size": 0,
+              "title": "Recent Manual Submissions",
+              "noDataMessage": "No manual submissions found in the selected time range",
+              "timeContext": {
+                "durationMs": 0
+              },
+              "timeContextFromParameter": "RecentTimeRange",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "TimeGenerated",
+                    "formatter": 6,
+                    "dateFormat": {
+                      "showUtcTime": false,
+                      "formatName": "shortDateTimePattern"
+                    }
+                  },
+                  {
+                    "columnMatch": "Confidence",
+                    "formatter": 8,
+                    "numberFormat": {
+                      "unit": 0,
+                      "options": {
+                        "style": "decimal",
+                        "minimumFractionDigits": 0,
+                        "maximumFractionDigits": 0
+                      }
+                    },
+                    "visualizations": {
+                      "greenRedGradient": {
+                        "min": 0,
+                        "max": 100
+                      }
+                    }
+                  }
+                ],
+                "sortBy": [
+                  {
+                    "itemKey": "TimeGenerated",
+                    "sortOrder": 2
+                  }
+                ],
+                "labelSettings": [
+                  {
+                    "columnId": "TimeGenerated",
+                    "label": "Submission Time"
+                  },
+                  {
+                    "columnId": "Type",
+                    "label": "Indicator Type"
+                  },
+                  {
+                    "columnId": "Value",
+                    "label": "Indicator Value"
+                  },
+                  {
+                    "columnId": "ThreatType",
+                    "label": "Threat Type"
+                  },
+                  {
+                    "columnId": "TLP",
+                    "label": "TLP"
+                  },
+                  {
+                    "columnId": "Confidence",
+                    "label": "Confidence Score"
+                  },
+                  {
+                    "columnId": "DistributionTargets",
+                    "label": "Distribution Targets"
+                  }
+                ]
+              }
+            },
+            "name": "RecentSubmissionsList"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Count submissions by type\r\nCTI_ThreatIntelIndicator_CL\r\n| where Source_s == \"Manual\" and TimeGenerated {RecentTimeRange}\r\n| extend FriendlyType = case(\r\n    Type_s == \"ip-addr\", \"IP Address\",\r\n    Type_s == \"domain-name\", \"Domain\",\r\n    Type_s == \"url\", \"URL\",\r\n    Type_s startswith \"file-\", \"File Hash\",\r\n    Type_s\r\n)\r\n| summarize Count = count() by FriendlyType\r\n| order by Count desc",
+              "size": 0,
+              "title": "Submissions by Type",
+              "noDataMessage": "No manual submissions found in the selected time range",
+              "timeContext": {
+                "durationMs": 0
+              },
+              "timeContextFromParameter": "RecentTimeRange",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "piechart",
+              "chartSettings": {
+                "seriesLabelSettings": [
+                  {
+                    "seriesName": "IP Address",
+                    "color": "blue"
+                  },
+                  {
+                    "seriesName": "Domain",
+                    "color": "orange"
+                  },
+                  {
+                    "seriesName": "URL",
+                    "color": "green"
+                  },
+                  {
+                    "seriesName": "File Hash",
+                    "color": "purple"
+                  }
+                ]
+              }
+            },
+            "customWidth": "50",
+            "name": "SubmissionsByTypeChart"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Group submissions by day\r\nCTI_ThreatIntelIndicator_CL\r\n| where Source_s == \"Manual\" and TimeGenerated {RecentTimeRange}\r\n| extend FriendlyType = case(\r\n    Type_s == \"ip-addr\", \"IP Address\",\r\n    Type_s == \"domain-name\", \"Domain\",\r\n    Type_s == \"url\", \"URL\",\r\n    Type_s startswith \"file-\", \"File Hash\",\r\n    Type_s\r\n)\r\n| summarize Count = count() by FriendlyType, bin(TimeGenerated, 1d)\r\n| order by TimeGenerated asc",
+              "size": 0,
+              "title": "Submission Trend",
+              "noDataMessage": "No manual submissions found in the selected time range",
+              "timeContext": {
+                "durationMs": 0
+              },
+              "timeContextFromParameter": "RecentTimeRange",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "timechart",
+              "chartSettings": {
+                "seriesLabelSettings": [
+                  {
+                    "seriesName": "IP Address",
+                    "color": "blue"
+                  },
+                  {
+                    "seriesName": "Domain",
+                    "color": "orange"
+                  },
+                  {
+                    "seriesName": "URL",
+                    "color": "green"
+                  },
+                  {
+                    "seriesName": "File Hash",
+                    "color": "purple"
+                  }
+                ]
+              }
+            },
+            "customWidth": "50",
+            "name": "SubmissionsTrendChart"
+          }
+        ],
+        "conditionalVisibility": {
+          "parameterName": "WorkbookTab",
+          "comparison": "isEqualTo",
+          "value": "RecentSubmissions"
+        }
+      },
+      "name": "RecentSubmissionsTab"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Implementation Instructions\n\n### Central Threat Intelligence V3 Architecture\n\nThis workbook integrates with the CTI V3 solution which uses the following data flow:\n\n1. **Primary Storage**: All indicators are stored in the CTI_ThreatIntelIndicator_CL table\n2. **Type-specific Tables**: Data is synchronized to type-specific tables (IP, Domain, URL, FileHash) by a Logic App\n3. **Distribution Logic**: Each security product integration monitors its relevant type-specific tables\n\n### Required Configuration\n\nFor this workbook to function properly, you'll need:\n\n- **Log Analytics Workspace** with CTI_ThreatIntelIndicator_CL table and all type-specific tables\n- **Logic Apps** for synchronization and distribution\n- **API Connections** to Microsoft 365 security products for indicator distribution\n\n### Production Implementation\n\nIn a production environment, you'll need to update the submission visualizations with the appropriate Data function calls. For example:\n\n```kql\n_Data_PutBlob(\"CTI_ThreatIntelIndicator_CL\", \n  dynamic({\n    \"Type_s\": \"ip-addr\", \n    \"Value_s\": \"{IPAddress}\", \n    \"Pattern_s\": \"[ipv4-addr:value = '{IPAddress}']\", \n    \"PatternType_s\": \"stix\", \n    \"Name_s\": \"IP: {IPAddress}\", \n    \"Description_s\": \"{IPDescription}\", \n    \"Action_s\": \"{IPAction}\", \n    \"Confidence_d\": {IPConfidenceScore}, \n    \"ValidFrom_t\": now(), \n    \"ValidUntil_t\": now() + {IPExpirationDays}d, \n    \"Source_s\": \"{SourceFeed}\", \n    \"TLP_s\": \"{IPTLP}\", \n    \"ThreatType_s\": \"{IPThreatType}\", \n    \"DistributionTargets_s\": \"{Distribution}\", \n    \"AdditionalFields\": dynamic({\"TLPLevel\": \"{IPTLP}\"}), \n    \"Active_b\": true, \n    \"IndicatorId_g\": guid() \n  })\n)\n```"
+      },
+      "name": "ImplementationInstructions"
+    }
+  ],
+  "fallbackResourceIds": [
+    "Azure Monitor"
+  ],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}": "KqlParameterItem/1.0",
+                    "parameters": [
+                      {
                         "id": "dbf4f30e-7270-4dc3-8189-96c7c3cf6112",
                         "version": "KqlParameterItem/1.0",
                         "name": "IPAddress",
@@ -240,7 +1080,7 @@
                 {
                   "type": 1,
                   "content": {
-                    "json": "### IP Submission Guidelines\n\n- Enter the IP address in standard IPv4 format (e.g., 192.168.1.1)\n- Confidence score should reflect your certainty (higher = more certain)\n- Private IP addresses (10.x.x.x, 172.16-31.x.x, 192.168.x.x) will not be accepted\n- TLP designation controls sharing permissions:\n  - RED: No sharing outside organization\n  - AMBER: Limited sharing within trusted community\n  - GREEN: Community-wide sharing permitted\n  - WHITE: Unlimited sharing\n- Description should include context such as observed behaviors, campaigns, or threat actors"
+                    "json": "### IP Submission Guidelines\n\n- Enter the IP address in standard IPv4 format (e.g., 192.168.1.1)\n- Confidence score should reflect your certainty (higher = more certain)\n- Private IP addresses (10.x.x.x, 172.16-31.x.x, 192.168.x.x) will not be accepted\n- TLP designation controls sharing permissions:\n  - RED: No sharing outside organization\n  - AMBER: Limited sharing within trusted community\n  - GREEN: Community-wide sharing permitted\n  - WHITE: Unlimited sharing\n- When selecting distribution targets, note that:\n  - Microsoft Defender XDR: Supports IP blocking\n  - Exchange Online: Can block IPs in email connections\n  - Entra ID: Can block IPs in authentication attempts\n- Description should include context such as observed behaviors, campaigns, or threat actors"
                   },
                   "customWidth": "35",
                   "name": "IPGuidelines"
@@ -249,45 +1089,7 @@
                   "type": 3,
                   "content": {
                     "version": "KqlItem/1.0",
-                    "query": "// Validate IP format using regex\r\nlet ipRegex = @'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$';\r\nlet privateIPRegex = @'^(10\\.|172\\.(1[6-9]|2[0-9]|3[0-1])\\.|192\\.168\\.)';\r\nlet isValidIP = '{IPAddress}' matches regex ipRegex;\r\nlet isPrivateIP = '{IPAddress}' matches regex privateIPRegex;\r\nlet confidenceInRange = {IPConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {IPExpirationDays} between (1 .. 365);\r\n\r\n// Check for duplicates\r\nlet duplicateCheck = \r\nCTI_IPIndicators_CL\r\n| where IPAddress_s == \"{IPAddress}\" and Active_b == true\r\n| project IPAddress_s, IndicatorId_g\r\n| count > 0;\r\n\r\nprint \r\n  ValidationResult = case(\r\n    isempty('{IPAddress}'), 'Please enter an IP address',\r\n    not(isValidIP), 'Invalid IP address format. Use standard IPv4 format (e.g., 1.2.3.4)',\r\n    isPrivateIP, 'Warning: This appears to be a private IP address',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    duplicateCheck, 'Warning: This IP address already exists as an active indicator',\r\n    'Valid')\r\n",
-                    "size": 3,
-                    "title": "Validation",
-                    "noDataMessage": "Enter values above to validate",
-                    "timeContext": {
-                      "durationMs": 86400000
-                    },
-                    "queryType": 0,
-                    "resourceType": "microsoft.operationalinsights/workspaces"
-                  },
-                  "name": "IPValidation"
-                },
-                {
-                  "type": 9,
-                  "content": {
-                    "version": "KqlParameterItem/1.0",
-                    "parameters": [
-                      {
-                        "id": "a0e31e14-1c39-448e-ac0b-87378e6da14b",
-                        "version": "KqlParameterItem/1.0",
-                        "name": "IPSubmitButton",
-                        "type": 1,
-                        "value": "Submit IP Indicator",
-                        "typeSettings": {
-                          "parameterMode": "button"
-                        }
-                      }
-                    ],
-                    "style": "formVertical",
-                    "queryType": 0,
-                    "resourceType": "microsoft.operationalinsights/workspaces"
-                  },
-                  "name": "IPSubmitButton"
-                },
-                {
-                  "type": 3,
-                  "content": {
-                    "version": "KqlItem/1.0",
-                    "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now() + {IPExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// First validate the inputs\r\nlet ipRegex = @'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$';\r\nlet isValidIP = '{IPAddress}' matches regex ipRegex;\r\nlet confidenceInRange = {IPConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {IPExpirationDays} between (1 .. 365);\r\n\r\nprint Result = case(\r\n    not(isValidIP), 'Invalid IP address format',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    \"Submitting indicator...\");\r\n\r\n// If validation passes, submit the indicator\r\nprint Operation = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), 'Validation failed',\r\n    \"Submitting IP indicator to CTI_IPIndicators_CL\");\r\n  \r\n// Only execute the insert if all validations pass\r\nlet insertResult = () {\r\n    let insertSuccess = true;\r\n    print \r\n        InsertedIP = '{IPAddress}',\r\n        InsertedIndicatorId = indicatorId,\r\n        InsertResult = \"Successfully added IP indicator\"\r\n};\r\n\r\nprint InsertStatus = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), \r\n    'Submission canceled due to validation errors',\r\n    'The indicator will be available in CTI_IPIndicators_CL within a few minutes');\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\n// This would call the actual data insertion function\r\n// In a real workbook, you would use the Data function to insert\r\n// For demonstration purposes, we're just showing the data that would be inserted\r\nprint DataToBeInserted = strcat(  \r\n  'IPAddress_s: \"{IPAddress}\", ',\r\n  'IndicatorId_g: \"', indicatorId, '\", ',\r\n  'ConfidenceScore_d: ', {IPConfidenceScore}, ', ',\r\n  'SourceFeed_s: \"{SourceFeed}\", ',\r\n  'FirstSeen_t: \"', now, '\", ',\r\n  'LastSeen_t: \"', now, '\", ',\r\n  'ExpirationDateTime_t: \"', expirationDate, '\", ',\r\n  'ThreatType_s: \"{IPThreatType}\", ',\r\n  'TLP_s: \"{IPTLP}\", ',\r\n  'Description_s: \"{IPDescription}\", ',\r\n  'Action_s: \"{IPAction}\", ',\r\n  'DistributionTargets_s: \"', distributionTargets, '\", ',\r\n  'Active_b: true')\r\n",
+                    "query": "// Validate IP format using regex\r\nlet ipRegex = @'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$';\r\nlet privateIPRegex = @'^(10\\.|172\\.(1[6-9]|2[0-9]|3[0-1])\\.|192\\.168\\.)';\r\nlet isValidIP = '{IPAddress}' matches regex ipRegex;\r\nlet isPrivateIP = '{IPAddress}' matches regex privateIPRegex;\r\nlet confidenceInRange = {IPConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {IPExpirationDays} between (1 .. 365);\r\n\r\n// Check for duplicates\r\nlet duplicateCheck = \r\nCTI_ThreatIntelIndicator_CL\r\n| where Type_s == \"ip-addr\" and Value_s == \"{IPAddress}\" and Active_b == true\r\n| project Value_s, IndicatorId_g\r\n| count > 0;\r\n\r\nprint \r\n  ValidationResult = case(\r\n    isempty('{IPAddress}'), 'Please enter an IP address',\r\n    not(isValidIP), 'Invalid IP address format. Use standard IPv4 format (e.g., 1.2.3.4)',\r\n    isPrivateIP, 'Warning: This appears to be a private IP address',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    duplicateCheck, 'Warning: This IP address already exists as an active indicator',\r\n    'Valid')\r\n",
                     "size": 0,
                     "queryType": 0,
                     "resourceType": "microsoft.operationalinsights/workspaces",
@@ -420,7 +1222,7 @@
                 {
                   "type": 1,
                   "content": {
-                    "json": "### Domain Submission Guidelines\n\n- Enter the domain name without http/https protocol (e.g., badsite.com)\n- Confidence score should reflect your certainty (higher = more certain)\n- For subdomains, include the entire FQDN (e.g., bad.example.com)\n- TLP designation controls sharing permissions\n- Description should include context such as observed behaviors, campaigns, or threat actors"
+                    "json": "### Domain Submission Guidelines\n\n- Enter the domain name without http/https protocol (e.g., badsite.com)\n- Confidence score should reflect your certainty (higher = more certain)\n- For subdomains, include the entire FQDN (e.g., bad.example.com)\n- TLP designation controls sharing permissions\n- When selecting distribution targets, note that:\n  - Microsoft Defender XDR: Supports domain blocking\n  - Exchange Online: Can block domains in email\n  - Entra ID: Limited domain blocking capability\n- Description should include context such as observed behaviors, campaigns, or threat actors"
                   },
                   "customWidth": "35",
                   "name": "DomainGuidelines"
@@ -429,7 +1231,45 @@
                   "type": 3,
                   "content": {
                     "version": "KqlItem/1.0",
-                    "query": "// Validate domain format using regex\r\nlet domainRegex = @'^([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$';\r\nlet isValidDomain = '{Domain}' matches regex domainRegex;\r\nlet confidenceInRange = {DomainConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {DomainExpirationDays} between (1 .. 365);\r\n\r\n// Check for duplicates\r\nlet duplicateCheck = \r\nCTI_DomainIndicators_CL\r\n| where Domain_s == \"{Domain}\" and Active_b == true\r\n| project Domain_s, IndicatorId_g\r\n| count > 0;\r\n\r\nprint \r\n  ValidationResult = case(\r\n    isempty('{Domain}'), 'Please enter a domain name',\r\n    not(isValidDomain), 'Invalid domain format. Enter a valid domain (e.g., example.com)',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    duplicateCheck, 'Warning: This domain already exists as an active indicator',\r\n    'Valid')\r\n",
+                    "query": "// Validate domain format using regex\r\nlet domainRegex = @'^([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}": 3,
+                    "title": "Validation",
+                    "noDataMessage": "Enter values above to validate",
+                    "timeContext": {
+                      "durationMs": 86400000
+                    },
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPValidation"
+                },
+                {
+                  "type": 9,
+                  "content": {
+                    "version": "KqlParameterItem/1.0",
+                    "parameters": [
+                      {
+                        "id": "a0e31e14-1c39-448e-ac0b-87378e6da14b",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "IPSubmitButton",
+                        "type": 1,
+                        "value": "Submit IP Indicator",
+                        "typeSettings": {
+                          "parameterMode": "button"
+                        }
+                      }
+                    ],
+                    "style": "formVertical",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPSubmitButton"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now() + {IPExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// Define TLP in AdditionalFields\r\nlet additionalFields = dynamic({\r\n    \"TLPLevel\": \"{IPTLP}\"\r\n});\r\n\r\n// First validate the inputs\r\nlet ipRegex = @'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$';\r\nlet isValidIP = '{IPAddress}' matches regex ipRegex;\r\nlet confidenceInRange = {IPConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {IPExpirationDays} between (1 .. 365);\r\n\r\nprint Result = case(\r\n    not(isValidIP), 'Invalid IP address format',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    \"Submitting indicator...\");\r\n\r\n// If validation passes, submit the indicator\r\nprint Operation = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), 'Validation failed',\r\n    \"Submitting IP indicator to CTI_ThreatIntelIndicator_CL\");\r\n  \r\n// Only execute the insert if all validations pass\r\nlet insertResult = () {\r\n    let insertSuccess = true;\r\n    print \r\n        InsertedIP = '{IPAddress}',\r\n        InsertedIndicatorId = indicatorId,\r\n        InsertResult = \"Successfully added IP indicator\"\r\n};\r\n\r\nprint InsertStatus = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), \r\n    'Submission canceled due to validation errors',\r\n    'The indicator will be added to CTI_ThreatIntelIndicator_CL, then automatically synchronized to CTI_IPIndicators_CL');\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\n// This would call the actual data insertion function\r\n// In a real workbook, you would use the Data function to insert\r\n// For demonstration purposes, we're just showing the data that would be inserted\r\nprint DataToBeInserted = strcat(  \r\n  'Type_s: \"ip-addr\", ',\r\n  'Value_s: \"{IPAddress}\", ',\r\n  'Pattern_s: \"[ipv4-addr:value = \\'', '{IPAddress}', '\\']\"', ', ',\r\n  'PatternType_s: \"stix\", ',\r\n  'Name_s: \"IP: {IPAddress}\", ',\r\n  'Description_s: \"{IPDescription}\", ',\r\n  'Action_s: \"{IPAction}\", ',\r\n  'Confidence_d: ', {IPConfidenceScore}, ', ',\r\n  'ValidFrom_t: \"', now, '\", ',\r\n  'ValidUntil_t: \"', expirationDate, '\", ',\r\n  'Source_s: \"{SourceFeed}\", ',\r\n  'TLP_s: \"{IPTLP}\", ',\r\n  'ThreatType_s: \"{IPThreatType}\", ',\r\n  'DistributionTargets_s: \"', distributionTargets, '\", ',\r\n  'AdditionalFields: ', additionalFields, ', ',\r\n  'Active_b: true, ',\r\n  'IndicatorId_g: \"', indicatorId, '\"')\r\n",
+                    "size;\r\nlet isValidDomain = '{Domain}' matches regex domainRegex;\r\nlet confidenceInRange = {DomainConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {DomainExpirationDays} between (1 .. 365);\r\n\r\n// Check for duplicates\r\nlet duplicateCheck = \r\nCTI_ThreatIntelIndicator_CL\r\n| where Type_s == \"domain-name\" and Value_s == \"{Domain}\" and Active_b == true\r\n| project Value_s, IndicatorId_g\r\n| count > 0;\r\n\r\nprint \r\n  ValidationResult = case(\r\n    isempty('{Domain}'), 'Please enter a domain name',\r\n    not(isValidDomain), 'Invalid domain format. Enter a valid domain (e.g., example.com)',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    duplicateCheck, 'Warning: This domain already exists as an active indicator',\r\n    'Valid')\r\n",
                     "size": 3,
                     "title": "Validation",
                     "noDataMessage": "Enter values above to validate",
@@ -467,7 +1307,45 @@
                   "type": 3,
                   "content": {
                     "version": "KqlItem/1.0",
-                    "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now() + {DomainExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// First validate the inputs\r\nlet domainRegex = @'^([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$';\r\nlet isValidDomain = '{Domain}' matches regex domainRegex;\r\nlet confidenceInRange = {DomainConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {DomainExpirationDays} between (1 .. 365);\r\n\r\nprint Result = case(\r\n    not(isValidDomain), 'Invalid domain format',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    \"Submitting indicator...\");\r\n\r\n// If validation passes, submit the indicator\r\nprint Operation = case(\r\n    not(isValidDomain) or not(confidenceInRange) or not(daysInRange), 'Validation failed',\r\n    \"Submitting domain indicator to CTI_DomainIndicators_CL\");\r\n  \r\n// Only execute the insert if all validations pass\r\nlet insertResult = () {\r\n    let insertSuccess = true;\r\n    print \r\n        InsertedDomain = '{Domain}',\r\n        InsertedIndicatorId = indicatorId,\r\n        InsertResult = \"Successfully added domain indicator\"\r\n};\r\n\r\nprint InsertStatus = case(\r\n    not(isValidDomain) or not(confidenceInRange) or not(daysInRange), \r\n    'Submission canceled due to validation errors',\r\n    'The indicator will be available in CTI_DomainIndicators_CL within a few minutes');\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\n// This would call the actual data insertion function\r\n// In a real workbook, you would use the Data function to insert\r\n// For demonstration purposes, we're just showing the data that would be inserted\r\nprint DataToBeInserted = strcat(  \r\n  'Domain_s: \"{Domain}\", ',\r\n  'IndicatorId_g: \"', indicatorId, '\", ',\r\n  'ConfidenceScore_d: ', {DomainConfidenceScore}, ', ',\r\n  'SourceFeed_s: \"{SourceFeed}\", ',\r\n  'FirstSeen_t: \"', now, '\", ',\r\n  'LastSeen_t: \"', now, '\", ',\r\n  'ExpirationDateTime_t: \"', expirationDate, '\", ',\r\n  'ThreatType_s: \"{DomainThreatType}\", ',\r\n  'TLP_s: \"{DomainTLP}\", ',\r\n  'Description_s: \"{DomainDescription}\", ',\r\n  'Action_s: \"{DomainAction}\", ',\r\n  'DistributionTargets_s: \"', distributionTargets, '\", ',\r\n  'Active_b: true')\r\n",
+                    "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now() + {DomainExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// Define TLP in AdditionalFields\r\nlet additionalFields = dynamic({\r\n    \"TLPLevel\": \"{DomainTLP}\"\r\n});\r\n\r\n// First validate the inputs\r\nlet domainRegex = @'^([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}": 3,
+                    "title": "Validation",
+                    "noDataMessage": "Enter values above to validate",
+                    "timeContext": {
+                      "durationMs": 86400000
+                    },
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPValidation"
+                },
+                {
+                  "type": 9,
+                  "content": {
+                    "version": "KqlParameterItem/1.0",
+                    "parameters": [
+                      {
+                        "id": "a0e31e14-1c39-448e-ac0b-87378e6da14b",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "IPSubmitButton",
+                        "type": 1,
+                        "value": "Submit IP Indicator",
+                        "typeSettings": {
+                          "parameterMode": "button"
+                        }
+                      }
+                    ],
+                    "style": "formVertical",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPSubmitButton"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now() + {IPExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// Define TLP in AdditionalFields\r\nlet additionalFields = dynamic({\r\n    \"TLPLevel\": \"{IPTLP}\"\r\n});\r\n\r\n// First validate the inputs\r\nlet ipRegex = @'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$';\r\nlet isValidIP = '{IPAddress}' matches regex ipRegex;\r\nlet confidenceInRange = {IPConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {IPExpirationDays} between (1 .. 365);\r\n\r\nprint Result = case(\r\n    not(isValidIP), 'Invalid IP address format',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    \"Submitting indicator...\");\r\n\r\n// If validation passes, submit the indicator\r\nprint Operation = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), 'Validation failed',\r\n    \"Submitting IP indicator to CTI_ThreatIntelIndicator_CL\");\r\n  \r\n// Only execute the insert if all validations pass\r\nlet insertResult = () {\r\n    let insertSuccess = true;\r\n    print \r\n        InsertedIP = '{IPAddress}',\r\n        InsertedIndicatorId = indicatorId,\r\n        InsertResult = \"Successfully added IP indicator\"\r\n};\r\n\r\nprint InsertStatus = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), \r\n    'Submission canceled due to validation errors',\r\n    'The indicator will be added to CTI_ThreatIntelIndicator_CL, then automatically synchronized to CTI_IPIndicators_CL');\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\n// This would call the actual data insertion function\r\n// In a real workbook, you would use the Data function to insert\r\n// For demonstration purposes, we're just showing the data that would be inserted\r\nprint DataToBeInserted = strcat(  \r\n  'Type_s: \"ip-addr\", ',\r\n  'Value_s: \"{IPAddress}\", ',\r\n  'Pattern_s: \"[ipv4-addr:value = \\'', '{IPAddress}', '\\']\"', ', ',\r\n  'PatternType_s: \"stix\", ',\r\n  'Name_s: \"IP: {IPAddress}\", ',\r\n  'Description_s: \"{IPDescription}\", ',\r\n  'Action_s: \"{IPAction}\", ',\r\n  'Confidence_d: ', {IPConfidenceScore}, ', ',\r\n  'ValidFrom_t: \"', now, '\", ',\r\n  'ValidUntil_t: \"', expirationDate, '\", ',\r\n  'Source_s: \"{SourceFeed}\", ',\r\n  'TLP_s: \"{IPTLP}\", ',\r\n  'ThreatType_s: \"{IPThreatType}\", ',\r\n  'DistributionTargets_s: \"', distributionTargets, '\", ',\r\n  'AdditionalFields: ', additionalFields, ', ',\r\n  'Active_b: true, ',\r\n  'IndicatorId_g: \"', indicatorId, '\"')\r\n",
+                    "size;\r\nlet isValidDomain = '{Domain}' matches regex domainRegex;\r\nlet confidenceInRange = {DomainConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {DomainExpirationDays} between (1 .. 365);\r\n\r\nprint Result = case(\r\n    not(isValidDomain), 'Invalid domain format',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    \"Submitting indicator...\");\r\n\r\n// If validation passes, submit the indicator\r\nprint Operation = case(\r\n    not(isValidDomain) or not(confidenceInRange) or not(daysInRange), 'Validation failed',\r\n    \"Submitting domain indicator to CTI_ThreatIntelIndicator_CL\");\r\n  \r\n// Only execute the insert if all validations pass\r\nlet insertResult = () {\r\n    let insertSuccess = true;\r\n    print \r\n        InsertedDomain = '{Domain}',\r\n        InsertedIndicatorId = indicatorId,\r\n        InsertResult = \"Successfully added domain indicator\"\r\n};\r\n\r\nprint InsertStatus = case(\r\n    not(isValidDomain) or not(confidenceInRange) or not(daysInRange), \r\n    'Submission canceled due to validation errors',\r\n    'The indicator will be added to CTI_ThreatIntelIndicator_CL, then automatically synchronized to CTI_DomainIndicators_CL');\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\n// This would call the actual data insertion function\r\n// In a real workbook, you would use the Data function to insert\r\n// For demonstration purposes, we're just showing the data that would be inserted\r\nprint DataToBeInserted = strcat(  \r\n  'Type_s: \"domain-name\", ',\r\n  'Value_s: \"{Domain}\", ',\r\n  'Pattern_s: \"[domain-name:value = \\'', '{Domain}', '\\']\"', ', ',\r\n  'PatternType_s: \"stix\", ',\r\n  'Name_s: \"Domain: {Domain}\", ',\r\n  'Description_s: \"{DomainDescription}\", ',\r\n  'Action_s: \"{DomainAction}\", ',\r\n  'Confidence_d: ', {DomainConfidenceScore}, ', ',\r\n  'ValidFrom_t: \"', now, '\", ',\r\n  'ValidUntil_t: \"', expirationDate, '\", ',\r\n  'Source_s: \"{SourceFeed}\", ',\r\n  'TLP_s: \"{DomainTLP}\", ',\r\n  'ThreatType_s: \"{DomainThreatType}\", ',\r\n  'DistributionTargets_s: \"', distributionTargets, '\", ',\r\n  'AdditionalFields: ', additionalFields, ', ',\r\n  'Active_b: true, ',\r\n  'IndicatorId_g: \"', indicatorId, '\"')\r\n",
                     "size": 0,
                     "queryType": 0,
                     "resourceType": "microsoft.operationalinsights/workspaces",
@@ -600,7 +1478,7 @@
                 {
                   "type": 1,
                   "content": {
-                    "json": "### URL Submission Guidelines\n\n- Enter the complete URL including protocol (http:// or https://)\n- Include the full path for more specific blocking\n- Confidence score should reflect your certainty (higher = more certain)\n- Prioritize malicious URLs over domain submissions for more precise controls\n- TLP designation controls sharing permissions\n- Description should include context such as campaign ID, observed behaviors, or threat actors"
+                    "json": "### URL Submission Guidelines\n\n- Enter the complete URL including protocol (http:// or https://)\n- Include the full path for more precise blocking\n- Confidence score should reflect your certainty (higher = more certain)\n- Prioritize malicious URLs over domain submissions for more precise controls\n- When selecting distribution targets, note that:\n  - Microsoft Defender XDR: Supports URL blocking\n  - Exchange Online: Can block URLs in email content\n  - Entra ID: Limited URL blocking capability\n- TLP designation controls sharing permissions\n- Description should include context such as campaign ID, observed behaviors, or threat actors"
                   },
                   "customWidth": "35",
                   "name": "URLGuidelines"
@@ -609,7 +1487,45 @@
                   "type": 3,
                   "content": {
                     "version": "KqlItem/1.0",
-                    "query": "// Validate URL format using regex\r\nlet urlRegex = @'^(https?:\\/\\/)?([\\da-z\\.-]+)\\.([a-z\\.]{2,6})([\\/\\w \\.-]*)*\\/?$';\r\nlet isValidURL = '{URL}' matches regex urlRegex;\r\nlet hasProtocol = '{URL}' startswith \"http://\" or '{URL}' startswith \"https://\";\r\nlet confidenceInRange = {URLConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {URLExpirationDays} between (1 .. 365);\r\n\r\n// Check for duplicates\r\nlet duplicateCheck = \r\nCTI_URLIndicators_CL\r\n| where URL_s == \"{URL}\" and Active_b == true\r\n| project URL_s, IndicatorId_g\r\n| count > 0;\r\n\r\nprint \r\n  ValidationResult = case(\r\n    isempty('{URL}'), 'Please enter a URL',\r\n    not(isValidURL), 'Invalid URL format. Enter a valid URL',\r\n    not(hasProtocol), 'URL should include protocol (http:// or https://)',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    duplicateCheck, 'Warning: This URL already exists as an active indicator',\r\n    'Valid')\r\n",
+                    "query": "// Validate URL format using regex\r\nlet urlRegex = @'^(https?:\\/\\/)?([\\da-z\\.-]+)\\.([a-z\\.]{2,6})([\\/\\w \\.-]*)*\\/?": 3,
+                    "title": "Validation",
+                    "noDataMessage": "Enter values above to validate",
+                    "timeContext": {
+                      "durationMs": 86400000
+                    },
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPValidation"
+                },
+                {
+                  "type": 9,
+                  "content": {
+                    "version": "KqlParameterItem/1.0",
+                    "parameters": [
+                      {
+                        "id": "a0e31e14-1c39-448e-ac0b-87378e6da14b",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "IPSubmitButton",
+                        "type": 1,
+                        "value": "Submit IP Indicator",
+                        "typeSettings": {
+                          "parameterMode": "button"
+                        }
+                      }
+                    ],
+                    "style": "formVertical",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPSubmitButton"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now() + {IPExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// Define TLP in AdditionalFields\r\nlet additionalFields = dynamic({\r\n    \"TLPLevel\": \"{IPTLP}\"\r\n});\r\n\r\n// First validate the inputs\r\nlet ipRegex = @'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$';\r\nlet isValidIP = '{IPAddress}' matches regex ipRegex;\r\nlet confidenceInRange = {IPConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {IPExpirationDays} between (1 .. 365);\r\n\r\nprint Result = case(\r\n    not(isValidIP), 'Invalid IP address format',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    \"Submitting indicator...\");\r\n\r\n// If validation passes, submit the indicator\r\nprint Operation = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), 'Validation failed',\r\n    \"Submitting IP indicator to CTI_ThreatIntelIndicator_CL\");\r\n  \r\n// Only execute the insert if all validations pass\r\nlet insertResult = () {\r\n    let insertSuccess = true;\r\n    print \r\n        InsertedIP = '{IPAddress}',\r\n        InsertedIndicatorId = indicatorId,\r\n        InsertResult = \"Successfully added IP indicator\"\r\n};\r\n\r\nprint InsertStatus = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), \r\n    'Submission canceled due to validation errors',\r\n    'The indicator will be added to CTI_ThreatIntelIndicator_CL, then automatically synchronized to CTI_IPIndicators_CL');\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\n// This would call the actual data insertion function\r\n// In a real workbook, you would use the Data function to insert\r\n// For demonstration purposes, we're just showing the data that would be inserted\r\nprint DataToBeInserted = strcat(  \r\n  'Type_s: \"ip-addr\", ',\r\n  'Value_s: \"{IPAddress}\", ',\r\n  'Pattern_s: \"[ipv4-addr:value = \\'', '{IPAddress}', '\\']\"', ', ',\r\n  'PatternType_s: \"stix\", ',\r\n  'Name_s: \"IP: {IPAddress}\", ',\r\n  'Description_s: \"{IPDescription}\", ',\r\n  'Action_s: \"{IPAction}\", ',\r\n  'Confidence_d: ', {IPConfidenceScore}, ', ',\r\n  'ValidFrom_t: \"', now, '\", ',\r\n  'ValidUntil_t: \"', expirationDate, '\", ',\r\n  'Source_s: \"{SourceFeed}\", ',\r\n  'TLP_s: \"{IPTLP}\", ',\r\n  'ThreatType_s: \"{IPThreatType}\", ',\r\n  'DistributionTargets_s: \"', distributionTargets, '\", ',\r\n  'AdditionalFields: ', additionalFields, ', ',\r\n  'Active_b: true, ',\r\n  'IndicatorId_g: \"', indicatorId, '\"')\r\n",
+                    "size;\r\nlet isValidURL = '{URL}' matches regex urlRegex;\r\nlet hasProtocol = '{URL}' startswith \"http://\" or '{URL}' startswith \"https://\";\r\nlet confidenceInRange = {URLConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {URLExpirationDays} between (1 .. 365);\r\n\r\n// Check for duplicates\r\nlet duplicateCheck = \r\nCTI_ThreatIntelIndicator_CL\r\n| where Type_s == \"url\" and Value_s == \"{URL}\" and Active_b == true\r\n| project Value_s, IndicatorId_g\r\n| count > 0;\r\n\r\nprint \r\n  ValidationResult = case(\r\n    isempty('{URL}'), 'Please enter a URL',\r\n    not(isValidURL), 'Invalid URL format. Enter a valid URL',\r\n    not(hasProtocol), 'URL should include protocol (http:// or https://)',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    duplicateCheck, 'Warning: This URL already exists as an active indicator',\r\n    'Valid')\r\n",
                     "size": 3,
                     "title": "Validation",
                     "noDataMessage": "Enter values above to validate",
@@ -647,7 +1563,45 @@
                   "type": 3,
                   "content": {
                     "version": "KqlItem/1.0",
-                    "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now() + {URLExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// First validate the inputs\r\nlet urlRegex = @'^(https?:\\/\\/)?([\\da-z\\.-]+)\\.([a-z\\.]{2,6})([\\/\\w \\.-]*)*\\/?$';\r\nlet isValidURL = '{URL}' matches regex urlRegex;\r\nlet hasProtocol = '{URL}' startswith \"http://\" or '{URL}' startswith \"https://\";\r\nlet confidenceInRange = {URLConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {URLExpirationDays} between (1 .. 365);\r\n\r\nprint Result = case(\r\n    not(isValidURL), 'Invalid URL format',\r\n    not(hasProtocol), 'URL should include protocol (http:// or https://)',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    \"Submitting indicator...\");\r\n\r\n// If validation passes, submit the indicator\r\nprint Operation = case(\r\n    not(isValidURL) or not(hasProtocol) or not(confidenceInRange) or not(daysInRange), 'Validation failed',\r\n    \"Submitting URL indicator to CTI_URLIndicators_CL\");\r\n  \r\n// Only execute the insert if all validations pass\r\nlet insertResult = () {\r\n    let insertSuccess = true;\r\n    print \r\n        InsertedURL = '{URL}',\r\n        InsertedIndicatorId = indicatorId,\r\n        InsertResult = \"Successfully added URL indicator\"\r\n};\r\n\r\nprint InsertStatus = case(\r\n    not(isValidURL) or not(hasProtocol) or not(confidenceInRange) or not(daysInRange), \r\n    'Submission canceled due to validation errors',\r\n    'The indicator will be available in CTI_URLIndicators_CL within a few minutes');\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\n// This would call the actual data insertion function\r\n// In a real workbook, you would use the Data function to insert\r\n// For demonstration purposes, we're just showing the data that would be inserted\r\nprint DataToBeInserted = strcat(  \r\n  'URL_s: \"{URL}\", ',\r\n  'IndicatorId_g: \"', indicatorId, '\", ',\r\n  'ConfidenceScore_d: ', {URLConfidenceScore}, ', ',\r\n  'SourceFeed_s: \"{SourceFeed}\", ',\r\n  'FirstSeen_t: \"', now, '\", ',\r\n  'LastSeen_t: \"', now, '\", ',\r\n  'ExpirationDateTime_t: \"', expirationDate, '\", ',\r\n  'ThreatType_s: \"{URLThreatType}\", ',\r\n  'TLP_s: \"{URLTLP}\", ',\r\n  'Description_s: \"{URLDescription}\", ',\r\n  'Action_s: \"{URLAction}\", ',\r\n  'DistributionTargets_s: \"', distributionTargets, '\", ',\r\n  'Active_b: true')\r\n",
+                    "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now() + {URLExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// Define TLP in AdditionalFields\r\nlet additionalFields = dynamic({\r\n    \"TLPLevel\": \"{URLTLP}\"\r\n});\r\n\r\n// First validate the inputs\r\nlet urlRegex = @'^(https?:\\/\\/)?([\\da-z\\.-]+)\\.([a-z\\.]{2,6})([\\/\\w \\.-]*)*\\/?": 3,
+                    "title": "Validation",
+                    "noDataMessage": "Enter values above to validate",
+                    "timeContext": {
+                      "durationMs": 86400000
+                    },
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPValidation"
+                },
+                {
+                  "type": 9,
+                  "content": {
+                    "version": "KqlParameterItem/1.0",
+                    "parameters": [
+                      {
+                        "id": "a0e31e14-1c39-448e-ac0b-87378e6da14b",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "IPSubmitButton",
+                        "type": 1,
+                        "value": "Submit IP Indicator",
+                        "typeSettings": {
+                          "parameterMode": "button"
+                        }
+                      }
+                    ],
+                    "style": "formVertical",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPSubmitButton"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now() + {IPExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// Define TLP in AdditionalFields\r\nlet additionalFields = dynamic({\r\n    \"TLPLevel\": \"{IPTLP}\"\r\n});\r\n\r\n// First validate the inputs\r\nlet ipRegex = @'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$';\r\nlet isValidIP = '{IPAddress}' matches regex ipRegex;\r\nlet confidenceInRange = {IPConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {IPExpirationDays} between (1 .. 365);\r\n\r\nprint Result = case(\r\n    not(isValidIP), 'Invalid IP address format',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    \"Submitting indicator...\");\r\n\r\n// If validation passes, submit the indicator\r\nprint Operation = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), 'Validation failed',\r\n    \"Submitting IP indicator to CTI_ThreatIntelIndicator_CL\");\r\n  \r\n// Only execute the insert if all validations pass\r\nlet insertResult = () {\r\n    let insertSuccess = true;\r\n    print \r\n        InsertedIP = '{IPAddress}',\r\n        InsertedIndicatorId = indicatorId,\r\n        InsertResult = \"Successfully added IP indicator\"\r\n};\r\n\r\nprint InsertStatus = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), \r\n    'Submission canceled due to validation errors',\r\n    'The indicator will be added to CTI_ThreatIntelIndicator_CL, then automatically synchronized to CTI_IPIndicators_CL');\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\n// This would call the actual data insertion function\r\n// In a real workbook, you would use the Data function to insert\r\n// For demonstration purposes, we're just showing the data that would be inserted\r\nprint DataToBeInserted = strcat(  \r\n  'Type_s: \"ip-addr\", ',\r\n  'Value_s: \"{IPAddress}\", ',\r\n  'Pattern_s: \"[ipv4-addr:value = \\'', '{IPAddress}', '\\']\"', ', ',\r\n  'PatternType_s: \"stix\", ',\r\n  'Name_s: \"IP: {IPAddress}\", ',\r\n  'Description_s: \"{IPDescription}\", ',\r\n  'Action_s: \"{IPAction}\", ',\r\n  'Confidence_d: ', {IPConfidenceScore}, ', ',\r\n  'ValidFrom_t: \"', now, '\", ',\r\n  'ValidUntil_t: \"', expirationDate, '\", ',\r\n  'Source_s: \"{SourceFeed}\", ',\r\n  'TLP_s: \"{IPTLP}\", ',\r\n  'ThreatType_s: \"{IPThreatType}\", ',\r\n  'DistributionTargets_s: \"', distributionTargets, '\", ',\r\n  'AdditionalFields: ', additionalFields, ', ',\r\n  'Active_b: true, ',\r\n  'IndicatorId_g: \"', indicatorId, '\"')\r\n",
+                    "size;\r\nlet isValidURL = '{URL}' matches regex urlRegex;\r\nlet hasProtocol = '{URL}' startswith \"http://\" or '{URL}' startswith \"https://\";\r\nlet confidenceInRange = {URLConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {URLExpirationDays} between (1 .. 365);\r\n\r\nprint Result = case(\r\n    not(isValidURL), 'Invalid URL format',\r\n    not(hasProtocol), 'URL should include protocol (http:// or https://)',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    \"Submitting indicator...\");\r\n\r\n// If validation passes, submit the indicator\r\nprint Operation = case(\r\n    not(isValidURL) or not(hasProtocol) or not(confidenceInRange) or not(daysInRange), 'Validation failed',\r\n    \"Submitting URL indicator to CTI_ThreatIntelIndicator_CL\");\r\n  \r\n// Only execute the insert if all validations pass\r\nlet insertResult = () {\r\n    let insertSuccess = true;\r\n    print \r\n        InsertedURL = '{URL}',\r\n        InsertedIndicatorId = indicatorId,\r\n        InsertResult = \"Successfully added URL indicator\"\r\n};\r\n\r\nprint InsertStatus = case(\r\n    not(isValidURL) or not(hasProtocol) or not(confidenceInRange) or not(daysInRange), \r\n    'Submission canceled due to validation errors',\r\n    'The indicator will be added to CTI_ThreatIntelIndicator_CL, then automatically synchronized to CTI_URLIndicators_CL');\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\n// This would call the actual data insertion function\r\n// In a real workbook, you would use the Data function to insert\r\n// For demonstration purposes, we're just showing the data that would be inserted\r\nprint DataToBeInserted = strcat(  \r\n  'Type_s: \"url\", ',\r\n  'Value_s: \"{URL}\", ',\r\n  'Pattern_s: \"[url:value = \\'', '{URL}', '\\']\"', ', ',\r\n  'PatternType_s: \"stix\", ',\r\n  'Name_s: \"URL: {URL}\", ',\r\n  'Description_s: \"{URLDescription}\", ',\r\n  'Action_s: \"{URLAction}\", ',\r\n  'Confidence_d: ', {URLConfidenceScore}, ', ',\r\n  'ValidFrom_t: \"', now, '\", ',\r\n  'ValidUntil_t: \"', expirationDate, '\", ',\r\n  'Source_s: \"{SourceFeed}\", ',\r\n  'TLP_s: \"{URLTLP}\", ',\r\n  'ThreatType_s: \"{URLThreatType}\", ',\r\n  'DistributionTargets_s: \"', distributionTargets, '\", ',\r\n  'AdditionalFields: ', additionalFields, ', ',\r\n  'Active_b: true, ',\r\n  'IndicatorId_g: \"', indicatorId, '\"')\r\n",
                     "size": 0,
                     "queryType": 0,
                     "resourceType": "microsoft.operationalinsights/workspaces",
@@ -807,7 +1761,7 @@
                 {
                   "type": 1,
                   "content": {
-                    "json": "### File Hash Submission Guidelines\n\n- SHA256 is preferred for maximum compatibility with security tools\n- Use correct hash format for the selected hash type:\n  - SHA256: 64 hexadecimal characters\n  - SHA1: 40 hexadecimal characters\n  - MD5: 32 hexadecimal characters\n- Malware Family helps with threat correlation and tracking\n- File hashes typically have longer expiration periods than IPs or domains\n- Add relevant details like file names or behavior in the description"
+                    "json": "### File Hash Submission Guidelines\n\n- SHA256 is preferred for maximum compatibility with security tools\n- Use correct hash format for the selected hash type:\n  - SHA256: 64 hexadecimal characters\n  - SHA1: 40 hexadecimal characters\n  - MD5: 32 hexadecimal characters\n- Malware Family helps with threat correlation and tracking\n- When selecting distribution targets, note that:\n  - Microsoft Defender XDR: Fully supports file hash blocking\n  - Exchange Online: Limited hash blocking capabilities\n  - Entra ID: Does not support file hash blocking\n- File hashes typically have longer expiration periods than IPs or domains\n- Add relevant details like file names or behavior in the description"
                   },
                   "customWidth": "35",
                   "name": "FileHashGuidelines"
@@ -816,7 +1770,121 @@
                   "type": 3,
                   "content": {
                     "version": "KqlItem/1.0",
-                    "query": "// Validate hash format using regex based on selected hash type\r\nlet sha256Regex = @'^[A-Fa-f0-9]{64}$';\r\nlet sha1Regex = @'^[A-Fa-f0-9]{40}$';\r\nlet md5Regex = @'^[A-Fa-f0-9]{32}$';\r\n\r\nlet hashFormatRegex = case(\r\n    '{HashType}' == 'SHA256', sha256Regex,\r\n    '{HashType}' == 'SHA1', sha1Regex,\r\n    '{HashType}' == 'MD5', md5Regex,\r\n    sha256Regex // Default to SHA256\r\n);\r\n\r\nlet isValidHashFormat = '{FileHash}' matches regex hashFormatRegex;\r\nlet confidenceInRange = {HashConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {HashExpirationDays} between (1 .. 365);\r\n\r\n// Check for duplicates based on hash type\r\nlet duplicateCheckQuery = dynamic({\r\n    \"SHA256\": \"| where SHA256_s == \\\"{FileHash}\\\" and Active_b == true\",\r\n    \"SHA1\": \"| where SHA1_s == \\\"{FileHash}\\\" and Active_b == true\",\r\n    \"MD5\": \"| where MD5_s == \\\"{FileHash}\\\" and Active_b == true\"\r\n});\r\n\r\nlet duplicateCheck = toscalar(\r\n    print cnt = 0 \r\n    // This is a demonstration only, in a real implementation we would check the table\r\n);\r\n\r\nprint \r\n  ValidationResult = case(\r\n    isempty('{FileHash}'), 'Please enter a file hash',\r\n    not(isValidHashFormat), strcat('Invalid ', '{HashType}', ' format. Check hash length and characters.'),\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    duplicateCheck, strcat('Warning: This ', '{HashType}', ' hash already exists as an active indicator'),\r\n    'Valid')\r\n",
+                    "query": "// Validate hash format using regex based on selected hash type\r\nlet sha256Regex = @'^[A-Fa-f0-9]{64}": 3,
+                    "title": "Validation",
+                    "noDataMessage": "Enter values above to validate",
+                    "timeContext": {
+                      "durationMs": 86400000
+                    },
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPValidation"
+                },
+                {
+                  "type": 9,
+                  "content": {
+                    "version": "KqlParameterItem/1.0",
+                    "parameters": [
+                      {
+                        "id": "a0e31e14-1c39-448e-ac0b-87378e6da14b",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "IPSubmitButton",
+                        "type": 1,
+                        "value": "Submit IP Indicator",
+                        "typeSettings": {
+                          "parameterMode": "button"
+                        }
+                      }
+                    ],
+                    "style": "formVertical",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPSubmitButton"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now() + {IPExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// Define TLP in AdditionalFields\r\nlet additionalFields = dynamic({\r\n    \"TLPLevel\": \"{IPTLP}\"\r\n});\r\n\r\n// First validate the inputs\r\nlet ipRegex = @'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$';\r\nlet isValidIP = '{IPAddress}' matches regex ipRegex;\r\nlet confidenceInRange = {IPConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {IPExpirationDays} between (1 .. 365);\r\n\r\nprint Result = case(\r\n    not(isValidIP), 'Invalid IP address format',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    \"Submitting indicator...\");\r\n\r\n// If validation passes, submit the indicator\r\nprint Operation = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), 'Validation failed',\r\n    \"Submitting IP indicator to CTI_ThreatIntelIndicator_CL\");\r\n  \r\n// Only execute the insert if all validations pass\r\nlet insertResult = () {\r\n    let insertSuccess = true;\r\n    print \r\n        InsertedIP = '{IPAddress}',\r\n        InsertedIndicatorId = indicatorId,\r\n        InsertResult = \"Successfully added IP indicator\"\r\n};\r\n\r\nprint InsertStatus = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), \r\n    'Submission canceled due to validation errors',\r\n    'The indicator will be added to CTI_ThreatIntelIndicator_CL, then automatically synchronized to CTI_IPIndicators_CL');\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\n// This would call the actual data insertion function\r\n// In a real workbook, you would use the Data function to insert\r\n// For demonstration purposes, we're just showing the data that would be inserted\r\nprint DataToBeInserted = strcat(  \r\n  'Type_s: \"ip-addr\", ',\r\n  'Value_s: \"{IPAddress}\", ',\r\n  'Pattern_s: \"[ipv4-addr:value = \\'', '{IPAddress}', '\\']\"', ', ',\r\n  'PatternType_s: \"stix\", ',\r\n  'Name_s: \"IP: {IPAddress}\", ',\r\n  'Description_s: \"{IPDescription}\", ',\r\n  'Action_s: \"{IPAction}\", ',\r\n  'Confidence_d: ', {IPConfidenceScore}, ', ',\r\n  'ValidFrom_t: \"', now, '\", ',\r\n  'ValidUntil_t: \"', expirationDate, '\", ',\r\n  'Source_s: \"{SourceFeed}\", ',\r\n  'TLP_s: \"{IPTLP}\", ',\r\n  'ThreatType_s: \"{IPThreatType}\", ',\r\n  'DistributionTargets_s: \"', distributionTargets, '\", ',\r\n  'AdditionalFields: ', additionalFields, ', ',\r\n  'Active_b: true, ',\r\n  'IndicatorId_g: \"', indicatorId, '\"')\r\n",
+                    "size;\r\nlet sha1Regex = @'^[A-Fa-f0-9]{40}": 3,
+                    "title": "Validation",
+                    "noDataMessage": "Enter values above to validate",
+                    "timeContext": {
+                      "durationMs": 86400000
+                    },
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPValidation"
+                },
+                {
+                  "type": 9,
+                  "content": {
+                    "version": "KqlParameterItem/1.0",
+                    "parameters": [
+                      {
+                        "id": "a0e31e14-1c39-448e-ac0b-87378e6da14b",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "IPSubmitButton",
+                        "type": 1,
+                        "value": "Submit IP Indicator",
+                        "typeSettings": {
+                          "parameterMode": "button"
+                        }
+                      }
+                    ],
+                    "style": "formVertical",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPSubmitButton"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now() + {IPExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// Define TLP in AdditionalFields\r\nlet additionalFields = dynamic({\r\n    \"TLPLevel\": \"{IPTLP}\"\r\n});\r\n\r\n// First validate the inputs\r\nlet ipRegex = @'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$';\r\nlet isValidIP = '{IPAddress}' matches regex ipRegex;\r\nlet confidenceInRange = {IPConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {IPExpirationDays} between (1 .. 365);\r\n\r\nprint Result = case(\r\n    not(isValidIP), 'Invalid IP address format',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    \"Submitting indicator...\");\r\n\r\n// If validation passes, submit the indicator\r\nprint Operation = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), 'Validation failed',\r\n    \"Submitting IP indicator to CTI_ThreatIntelIndicator_CL\");\r\n  \r\n// Only execute the insert if all validations pass\r\nlet insertResult = () {\r\n    let insertSuccess = true;\r\n    print \r\n        InsertedIP = '{IPAddress}',\r\n        InsertedIndicatorId = indicatorId,\r\n        InsertResult = \"Successfully added IP indicator\"\r\n};\r\n\r\nprint InsertStatus = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), \r\n    'Submission canceled due to validation errors',\r\n    'The indicator will be added to CTI_ThreatIntelIndicator_CL, then automatically synchronized to CTI_IPIndicators_CL');\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\n// This would call the actual data insertion function\r\n// In a real workbook, you would use the Data function to insert\r\n// For demonstration purposes, we're just showing the data that would be inserted\r\nprint DataToBeInserted = strcat(  \r\n  'Type_s: \"ip-addr\", ',\r\n  'Value_s: \"{IPAddress}\", ',\r\n  'Pattern_s: \"[ipv4-addr:value = \\'', '{IPAddress}', '\\']\"', ', ',\r\n  'PatternType_s: \"stix\", ',\r\n  'Name_s: \"IP: {IPAddress}\", ',\r\n  'Description_s: \"{IPDescription}\", ',\r\n  'Action_s: \"{IPAction}\", ',\r\n  'Confidence_d: ', {IPConfidenceScore}, ', ',\r\n  'ValidFrom_t: \"', now, '\", ',\r\n  'ValidUntil_t: \"', expirationDate, '\", ',\r\n  'Source_s: \"{SourceFeed}\", ',\r\n  'TLP_s: \"{IPTLP}\", ',\r\n  'ThreatType_s: \"{IPThreatType}\", ',\r\n  'DistributionTargets_s: \"', distributionTargets, '\", ',\r\n  'AdditionalFields: ', additionalFields, ', ',\r\n  'Active_b: true, ',\r\n  'IndicatorId_g: \"', indicatorId, '\"')\r\n",
+                    "size;\r\nlet md5Regex = @'^[A-Fa-f0-9]{32}": 3,
+                    "title": "Validation",
+                    "noDataMessage": "Enter values above to validate",
+                    "timeContext": {
+                      "durationMs": 86400000
+                    },
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPValidation"
+                },
+                {
+                  "type": 9,
+                  "content": {
+                    "version": "KqlParameterItem/1.0",
+                    "parameters": [
+                      {
+                        "id": "a0e31e14-1c39-448e-ac0b-87378e6da14b",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "IPSubmitButton",
+                        "type": 1,
+                        "value": "Submit IP Indicator",
+                        "typeSettings": {
+                          "parameterMode": "button"
+                        }
+                      }
+                    ],
+                    "style": "formVertical",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPSubmitButton"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now() + {IPExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// Define TLP in AdditionalFields\r\nlet additionalFields = dynamic({\r\n    \"TLPLevel\": \"{IPTLP}\"\r\n});\r\n\r\n// First validate the inputs\r\nlet ipRegex = @'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$';\r\nlet isValidIP = '{IPAddress}' matches regex ipRegex;\r\nlet confidenceInRange = {IPConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {IPExpirationDays} between (1 .. 365);\r\n\r\nprint Result = case(\r\n    not(isValidIP), 'Invalid IP address format',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    \"Submitting indicator...\");\r\n\r\n// If validation passes, submit the indicator\r\nprint Operation = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), 'Validation failed',\r\n    \"Submitting IP indicator to CTI_ThreatIntelIndicator_CL\");\r\n  \r\n// Only execute the insert if all validations pass\r\nlet insertResult = () {\r\n    let insertSuccess = true;\r\n    print \r\n        InsertedIP = '{IPAddress}',\r\n        InsertedIndicatorId = indicatorId,\r\n        InsertResult = \"Successfully added IP indicator\"\r\n};\r\n\r\nprint InsertStatus = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), \r\n    'Submission canceled due to validation errors',\r\n    'The indicator will be added to CTI_ThreatIntelIndicator_CL, then automatically synchronized to CTI_IPIndicators_CL');\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\n// This would call the actual data insertion function\r\n// In a real workbook, you would use the Data function to insert\r\n// For demonstration purposes, we're just showing the data that would be inserted\r\nprint DataToBeInserted = strcat(  \r\n  'Type_s: \"ip-addr\", ',\r\n  'Value_s: \"{IPAddress}\", ',\r\n  'Pattern_s: \"[ipv4-addr:value = \\'', '{IPAddress}', '\\']\"', ', ',\r\n  'PatternType_s: \"stix\", ',\r\n  'Name_s: \"IP: {IPAddress}\", ',\r\n  'Description_s: \"{IPDescription}\", ',\r\n  'Action_s: \"{IPAction}\", ',\r\n  'Confidence_d: ', {IPConfidenceScore}, ', ',\r\n  'ValidFrom_t: \"', now, '\", ',\r\n  'ValidUntil_t: \"', expirationDate, '\", ',\r\n  'Source_s: \"{SourceFeed}\", ',\r\n  'TLP_s: \"{IPTLP}\", ',\r\n  'ThreatType_s: \"{IPThreatType}\", ',\r\n  'DistributionTargets_s: \"', distributionTargets, '\", ',\r\n  'AdditionalFields: ', additionalFields, ', ',\r\n  'Active_b: true, ',\r\n  'IndicatorId_g: \"', indicatorId, '\"')\r\n",
+                    "size;\r\n\r\nlet hashFormatRegex = case(\r\n    '{HashType}' == 'SHA256', sha256Regex,\r\n    '{HashType}' == 'SHA1', sha1Regex,\r\n    '{HashType}' == 'MD5', md5Regex,\r\n    sha256Regex // Default to SHA256\r\n);\r\n\r\nlet isValidHashFormat = '{FileHash}' matches regex hashFormatRegex;\r\nlet confidenceInRange = {HashConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {HashExpirationDays} between (1 .. 365);\r\n\r\n// Check for duplicates based on hash type\r\nlet hashTypeStix = case(\r\n    '{HashType}' == 'SHA256', 'file-sha256',\r\n    '{HashType}' == 'SHA1', 'file-sha1',\r\n    '{HashType}' == 'MD5', 'file-md5',\r\n    'file-sha256' // Default\r\n);\r\n\r\nlet duplicateCheck = \r\nCTI_ThreatIntelIndicator_CL\r\n| where Type_s == hashTypeStix and Value_s == \"{FileHash}\" and Active_b == true\r\n| project Value_s, IndicatorId_g\r\n| count > 0;\r\n\r\nprint \r\n  ValidationResult = case(\r\n    isempty('{FileHash}'), 'Please enter a file hash',\r\n    not(isValidHashFormat), strcat('Invalid ', '{HashType}', ' format. Check hash length and characters.'),\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    duplicateCheck, strcat('Warning: This ', '{HashType}', ' hash already exists as an active indicator'),\r\n    'Valid')\r\n",
                     "size": 3,
                     "title": "Validation",
                     "noDataMessage": "Enter values above to validate",
@@ -854,7 +1922,121 @@
                   "type": 3,
                   "content": {
                     "version": "KqlItem/1.0",
-                    "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now() + {HashExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// First validate the inputs\r\nlet sha256Regex = @'^[A-Fa-f0-9]{64}$';\r\nlet sha1Regex = @'^[A-Fa-f0-9]{40}$';\r\nlet md5Regex = @'^[A-Fa-f0-9]{32}$';\r\n\r\nlet hashFormatRegex = case(\r\n    '{HashType}' == 'SHA256', sha256Regex,\r\n    '{HashType}' == 'SHA1', sha1Regex,\r\n    '{HashType}' == 'MD5', md5Regex,\r\n    sha256Regex // Default to SHA256\r\n);\r\n\r\nlet isValidHashFormat = '{FileHash}' matches regex hashFormatRegex;\r\nlet confidenceInRange = {HashConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {HashExpirationDays} between (1 .. 365);\r\n\r\nprint Result = case(\r\n    not(isValidHashFormat), strcat('Invalid ', '{HashType}', ' format'),\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    \"Submitting indicator...\");\r\n\r\n// If validation passes, submit the indicator\r\nprint Operation = case(\r\n    not(isValidHashFormat) or not(confidenceInRange) or not(daysInRange), 'Validation failed',\r\n    \"Submitting file hash indicator to CTI_FileHashIndicators_CL\");\r\n  \r\n// Only execute the insert if all validations pass\r\nlet insertResult = () {\r\n    let insertSuccess = true;\r\n    print \r\n        InsertedFileHash = '{FileHash}',\r\n        InsertedHashType = '{HashType}',\r\n        InsertedIndicatorId = indicatorId,\r\n        InsertResult = \"Successfully added file hash indicator\"\r\n};\r\n\r\nprint InsertStatus = case(\r\n    not(isValidHashFormat) or not(confidenceInRange) or not(daysInRange), \r\n    'Submission canceled due to validation errors',\r\n    'The indicator will be available in CTI_FileHashIndicators_CL within a few minutes');\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\n// This would call the actual data insertion function\r\n// In a real workbook, you would use the Data function to insert\r\n// For demonstration purposes, we're just showing the data that would be inserted\r\nlet sha256Value = iff('{HashType}' == 'SHA256', '{FileHash}', \"\");\r\nlet sha1Value = iff('{HashType}' == 'SHA1', '{FileHash}', \"\");\r\nlet md5Value = iff('{HashType}' == 'MD5', '{FileHash}', \"\");\r\n\r\nprint DataToBeInserted = strcat(  \r\n  'SHA256_s: \"', sha256Value, '\", ',\r\n  'SHA1_s: \"', sha1Value, '\", ',\r\n  'MD5_s: \"', md5Value, '\", ',\r\n  'IndicatorId_g: \"', indicatorId, '\", ',\r\n  'ConfidenceScore_d: ', {HashConfidenceScore}, ', ',\r\n  'MalwareFamily_s: \"{MalwareFamily}\", ',\r\n  'SourceFeed_s: \"{SourceFeed}\", ',\r\n  'FirstSeen_t: \"', now, '\", ',\r\n  'LastSeen_t: \"', now, '\", ',\r\n  'ExpirationDateTime_t: \"', expirationDate, '\", ',\r\n  'ThreatType_s: \"{HashThreatType}\", ',\r\n  'TLP_s: \"{HashTLP}\", ',\r\n  'Description_s: \"{HashDescription}\", ',\r\n  'Action_s: \"{HashAction}\", ',\r\n  'DistributionTargets_s: \"', distributionTargets, '\", ',\r\n  'Active_b: true')\r\n",
+                    "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now() + {HashExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// Define TLP and malware family in AdditionalFields\r\nlet additionalFields = dynamic({\r\n    \"TLPLevel\": \"{HashTLP}\",\r\n    \"MalwareFamily\": \"{MalwareFamily}\"\r\n});\r\n\r\n// Get the STIX type based on hash type selection\r\nlet hashTypeStix = case(\r\n    '{HashType}' == 'SHA256', 'file-sha256',\r\n    '{HashType}' == 'SHA1', 'file-sha1',\r\n    '{HashType}' == 'MD5', 'file-md5',\r\n    'file-sha256' // Default\r\n);\r\n\r\n// First validate the inputs\r\nlet sha256Regex = @'^[A-Fa-f0-9]{64}": 3,
+                    "title": "Validation",
+                    "noDataMessage": "Enter values above to validate",
+                    "timeContext": {
+                      "durationMs": 86400000
+                    },
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPValidation"
+                },
+                {
+                  "type": 9,
+                  "content": {
+                    "version": "KqlParameterItem/1.0",
+                    "parameters": [
+                      {
+                        "id": "a0e31e14-1c39-448e-ac0b-87378e6da14b",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "IPSubmitButton",
+                        "type": 1,
+                        "value": "Submit IP Indicator",
+                        "typeSettings": {
+                          "parameterMode": "button"
+                        }
+                      }
+                    ],
+                    "style": "formVertical",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPSubmitButton"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now() + {IPExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// Define TLP in AdditionalFields\r\nlet additionalFields = dynamic({\r\n    \"TLPLevel\": \"{IPTLP}\"\r\n});\r\n\r\n// First validate the inputs\r\nlet ipRegex = @'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$';\r\nlet isValidIP = '{IPAddress}' matches regex ipRegex;\r\nlet confidenceInRange = {IPConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {IPExpirationDays} between (1 .. 365);\r\n\r\nprint Result = case(\r\n    not(isValidIP), 'Invalid IP address format',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    \"Submitting indicator...\");\r\n\r\n// If validation passes, submit the indicator\r\nprint Operation = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), 'Validation failed',\r\n    \"Submitting IP indicator to CTI_ThreatIntelIndicator_CL\");\r\n  \r\n// Only execute the insert if all validations pass\r\nlet insertResult = () {\r\n    let insertSuccess = true;\r\n    print \r\n        InsertedIP = '{IPAddress}',\r\n        InsertedIndicatorId = indicatorId,\r\n        InsertResult = \"Successfully added IP indicator\"\r\n};\r\n\r\nprint InsertStatus = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), \r\n    'Submission canceled due to validation errors',\r\n    'The indicator will be added to CTI_ThreatIntelIndicator_CL, then automatically synchronized to CTI_IPIndicators_CL');\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\n// This would call the actual data insertion function\r\n// In a real workbook, you would use the Data function to insert\r\n// For demonstration purposes, we're just showing the data that would be inserted\r\nprint DataToBeInserted = strcat(  \r\n  'Type_s: \"ip-addr\", ',\r\n  'Value_s: \"{IPAddress}\", ',\r\n  'Pattern_s: \"[ipv4-addr:value = \\'', '{IPAddress}', '\\']\"', ', ',\r\n  'PatternType_s: \"stix\", ',\r\n  'Name_s: \"IP: {IPAddress}\", ',\r\n  'Description_s: \"{IPDescription}\", ',\r\n  'Action_s: \"{IPAction}\", ',\r\n  'Confidence_d: ', {IPConfidenceScore}, ', ',\r\n  'ValidFrom_t: \"', now, '\", ',\r\n  'ValidUntil_t: \"', expirationDate, '\", ',\r\n  'Source_s: \"{SourceFeed}\", ',\r\n  'TLP_s: \"{IPTLP}\", ',\r\n  'ThreatType_s: \"{IPThreatType}\", ',\r\n  'DistributionTargets_s: \"', distributionTargets, '\", ',\r\n  'AdditionalFields: ', additionalFields, ', ',\r\n  'Active_b: true, ',\r\n  'IndicatorId_g: \"', indicatorId, '\"')\r\n",
+                    "size;\r\nlet sha1Regex = @'^[A-Fa-f0-9]{40}": 3,
+                    "title": "Validation",
+                    "noDataMessage": "Enter values above to validate",
+                    "timeContext": {
+                      "durationMs": 86400000
+                    },
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPValidation"
+                },
+                {
+                  "type": 9,
+                  "content": {
+                    "version": "KqlParameterItem/1.0",
+                    "parameters": [
+                      {
+                        "id": "a0e31e14-1c39-448e-ac0b-87378e6da14b",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "IPSubmitButton",
+                        "type": 1,
+                        "value": "Submit IP Indicator",
+                        "typeSettings": {
+                          "parameterMode": "button"
+                        }
+                      }
+                    ],
+                    "style": "formVertical",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPSubmitButton"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now() + {IPExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// Define TLP in AdditionalFields\r\nlet additionalFields = dynamic({\r\n    \"TLPLevel\": \"{IPTLP}\"\r\n});\r\n\r\n// First validate the inputs\r\nlet ipRegex = @'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$';\r\nlet isValidIP = '{IPAddress}' matches regex ipRegex;\r\nlet confidenceInRange = {IPConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {IPExpirationDays} between (1 .. 365);\r\n\r\nprint Result = case(\r\n    not(isValidIP), 'Invalid IP address format',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    \"Submitting indicator...\");\r\n\r\n// If validation passes, submit the indicator\r\nprint Operation = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), 'Validation failed',\r\n    \"Submitting IP indicator to CTI_ThreatIntelIndicator_CL\");\r\n  \r\n// Only execute the insert if all validations pass\r\nlet insertResult = () {\r\n    let insertSuccess = true;\r\n    print \r\n        InsertedIP = '{IPAddress}',\r\n        InsertedIndicatorId = indicatorId,\r\n        InsertResult = \"Successfully added IP indicator\"\r\n};\r\n\r\nprint InsertStatus = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), \r\n    'Submission canceled due to validation errors',\r\n    'The indicator will be added to CTI_ThreatIntelIndicator_CL, then automatically synchronized to CTI_IPIndicators_CL');\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\n// This would call the actual data insertion function\r\n// In a real workbook, you would use the Data function to insert\r\n// For demonstration purposes, we're just showing the data that would be inserted\r\nprint DataToBeInserted = strcat(  \r\n  'Type_s: \"ip-addr\", ',\r\n  'Value_s: \"{IPAddress}\", ',\r\n  'Pattern_s: \"[ipv4-addr:value = \\'', '{IPAddress}', '\\']\"', ', ',\r\n  'PatternType_s: \"stix\", ',\r\n  'Name_s: \"IP: {IPAddress}\", ',\r\n  'Description_s: \"{IPDescription}\", ',\r\n  'Action_s: \"{IPAction}\", ',\r\n  'Confidence_d: ', {IPConfidenceScore}, ', ',\r\n  'ValidFrom_t: \"', now, '\", ',\r\n  'ValidUntil_t: \"', expirationDate, '\", ',\r\n  'Source_s: \"{SourceFeed}\", ',\r\n  'TLP_s: \"{IPTLP}\", ',\r\n  'ThreatType_s: \"{IPThreatType}\", ',\r\n  'DistributionTargets_s: \"', distributionTargets, '\", ',\r\n  'AdditionalFields: ', additionalFields, ', ',\r\n  'Active_b: true, ',\r\n  'IndicatorId_g: \"', indicatorId, '\"')\r\n",
+                    "size;\r\nlet md5Regex = @'^[A-Fa-f0-9]{32}": 3,
+                    "title": "Validation",
+                    "noDataMessage": "Enter values above to validate",
+                    "timeContext": {
+                      "durationMs": 86400000
+                    },
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPValidation"
+                },
+                {
+                  "type": 9,
+                  "content": {
+                    "version": "KqlParameterItem/1.0",
+                    "parameters": [
+                      {
+                        "id": "a0e31e14-1c39-448e-ac0b-87378e6da14b",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "IPSubmitButton",
+                        "type": 1,
+                        "value": "Submit IP Indicator",
+                        "typeSettings": {
+                          "parameterMode": "button"
+                        }
+                      }
+                    ],
+                    "style": "formVertical",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "IPSubmitButton"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now() + {IPExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// Define TLP in AdditionalFields\r\nlet additionalFields = dynamic({\r\n    \"TLPLevel\": \"{IPTLP}\"\r\n});\r\n\r\n// First validate the inputs\r\nlet ipRegex = @'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$';\r\nlet isValidIP = '{IPAddress}' matches regex ipRegex;\r\nlet confidenceInRange = {IPConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {IPExpirationDays} between (1 .. 365);\r\n\r\nprint Result = case(\r\n    not(isValidIP), 'Invalid IP address format',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    \"Submitting indicator...\");\r\n\r\n// If validation passes, submit the indicator\r\nprint Operation = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), 'Validation failed',\r\n    \"Submitting IP indicator to CTI_ThreatIntelIndicator_CL\");\r\n  \r\n// Only execute the insert if all validations pass\r\nlet insertResult = () {\r\n    let insertSuccess = true;\r\n    print \r\n        InsertedIP = '{IPAddress}',\r\n        InsertedIndicatorId = indicatorId,\r\n        InsertResult = \"Successfully added IP indicator\"\r\n};\r\n\r\nprint InsertStatus = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), \r\n    'Submission canceled due to validation errors',\r\n    'The indicator will be added to CTI_ThreatIntelIndicator_CL, then automatically synchronized to CTI_IPIndicators_CL');\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\n// This would call the actual data insertion function\r\n// In a real workbook, you would use the Data function to insert\r\n// For demonstration purposes, we're just showing the data that would be inserted\r\nprint DataToBeInserted = strcat(  \r\n  'Type_s: \"ip-addr\", ',\r\n  'Value_s: \"{IPAddress}\", ',\r\n  'Pattern_s: \"[ipv4-addr:value = \\'', '{IPAddress}', '\\']\"', ', ',\r\n  'PatternType_s: \"stix\", ',\r\n  'Name_s: \"IP: {IPAddress}\", ',\r\n  'Description_s: \"{IPDescription}\", ',\r\n  'Action_s: \"{IPAction}\", ',\r\n  'Confidence_d: ', {IPConfidenceScore}, ', ',\r\n  'ValidFrom_t: \"', now, '\", ',\r\n  'ValidUntil_t: \"', expirationDate, '\", ',\r\n  'Source_s: \"{SourceFeed}\", ',\r\n  'TLP_s: \"{IPTLP}\", ',\r\n  'ThreatType_s: \"{IPThreatType}\", ',\r\n  'DistributionTargets_s: \"', distributionTargets, '\", ',\r\n  'AdditionalFields: ', additionalFields, ', ',\r\n  'Active_b: true, ',\r\n  'IndicatorId_g: \"', indicatorId, '\"')\r\n",
+                    "size;\r\n\r\nlet hashFormatRegex = case(\r\n    '{HashType}' == 'SHA256', sha256Regex,\r\n    '{HashType}' == 'SHA1', sha1Regex,\r\n    '{HashType}' == 'MD5', md5Regex,\r\n    sha256Regex // Default to SHA256\r\n);\r\n\r\nlet isValidHashFormat = '{FileHash}' matches regex hashFormatRegex;\r\nlet confidenceInRange = {HashConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {HashExpirationDays} between (1 .. 365);\r\n\r\nprint Result = case(\r\n    not(isValidHashFormat), strcat('Invalid ', '{HashType}', ' format'),\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    \"Submitting indicator...\");\r\n\r\n// If validation passes, submit the indicator\r\nprint Operation = case(\r\n    not(isValidHashFormat) or not(confidenceInRange) or not(daysInRange), 'Validation failed',\r\n    \"Submitting file hash indicator to CTI_ThreatIntelIndicator_CL\");\r\n  \r\n// Only execute the insert if all validations pass\r\nlet insertResult = () {\r\n    let insertSuccess = true;\r\n    print \r\n        InsertedFileHash = '{FileHash}',\r\n        InsertedHashType = '{HashType}',\r\n        InsertedIndicatorId = indicatorId,\r\n        InsertResult = \"Successfully added file hash indicator\"\r\n};\r\n\r\nprint InsertStatus = case(\r\n    not(isValidHashFormat) or not(confidenceInRange) or not(daysInRange), \r\n    'Submission canceled due to validation errors',\r\n    'The indicator will be added to CTI_ThreatIntelIndicator_CL, then automatically synchronized to CTI_FileHashIndicators_CL');\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\n// Generate the STIX pattern for file hash based on type\r\nlet stixPattern = case(\r\n    '{HashType}' == 'SHA256', strcat(\"[file:hashes.'SHA-256' = '\", '{FileHash}', \"']\"),\r\n    '{HashType}' == 'SHA1', strcat(\"[file:hashes.'SHA-1' = '\", '{FileHash}', \"']\"),\r\n    '{HashType}' == 'MD5', strcat(\"[file:hashes.'MD5' = '\", '{FileHash}', \"']\"),\r\n    strcat(\"[file:hashes.'SHA-256' = '\", '{FileHash}', \"']\") // Default\r\n);\r\n\r\n// This would call the actual data insertion function\r\n// In a real workbook, you would use the Data function to insert\r\n// For demonstration purposes, we're just showing the data that would be inserted\r\nprint DataToBeInserted = strcat(  \r\n  'Type_s: \"', hashTypeStix, '\", ',\r\n  'Value_s: \"{FileHash}\", ',\r\n  'Pattern_s: \"', stixPattern, '\", ',\r\n  'PatternType_s: \"stix\", ',\r\n  'Name_s: \"', '{HashType}', ': {FileHash}\", ',\r\n  'Description_s: \"{HashDescription}\", ',\r\n  'Action_s: \"{HashAction}\", ',\r\n  'Confidence_d: ', {HashConfidenceScore}, ', ',\r\n  'ValidFrom_t: \"', now, '\", ',\r\n  'ValidUntil_t: \"', expirationDate, '\", ',\r\n  'Source_s: \"{SourceFeed}\", ',\r\n  'TLP_s: \"{HashTLP}\", ',\r\n  'ThreatType_s: \"{HashThreatType}\", ',\r\n  'DistributionTargets_s: \"', distributionTargets, '\", ',\r\n  'AdditionalFields: ', additionalFields, ', ',\r\n  'Active_b: true, ',\r\n  'IndicatorId_g: \"', indicatorId, '\"')\r\n",
                     "size": 0,
                     "queryType": 0,
                     "resourceType": "microsoft.operationalinsights/workspaces",
@@ -923,7 +2105,7 @@
                     "additionalResourceOptions": [],
                     "showDefault": false
                   },
-                  "jsonData": "[\n    { \"value\": \"All\", \"label\": \"All Types\" },\n    { \"value\": \"IP\", \"label\": \"IP Address\" },\n    { \"value\": \"Domain\", \"label\": \"Domain Name\" },\n    { \"value\": \"URL\", \"label\": \"URL\" },\n    { \"value\": \"FileHash\", \"label\": \"File Hash\" }\n]"
+                  "jsonData": "[\n    { \"value\": \"All\", \"label\": \"All Types\" },\n    { \"value\": \"ip-addr\", \"label\": \"IP Address\" },\n    { \"value\": \"domain-name\", \"label\": \"Domain Name\" },\n    { \"value\": \"url\", \"label\": \"URL\" },\n    { \"value\": \"file\", \"label\": \"File Hash\" }\n]"
                 }
               ],
               "style": "pills",
@@ -936,13 +2118,30 @@
             "type": 3,
             "content": {
               "version": "KqlItem/1.0",
-              "query": "// Status summary for indicators\r\nlet expiryThreshold = now()+7d;\r\nlet recentThreshold = now()-7d;\r\nlet expiredThreshold = now()-30d;\r\n\r\n// Define what indicators we need based on status category\r\nlet indicatorQuery = \r\ncase(\r\n    // Active indicators\r\n    \"{StatusCategory}\" == \"Active\",\r\n    union \r\n    (CTI_IPIndicators_CL\r\n    | where Active_b == true\r\n    | extend Type = \"IP\", Value = IPAddress_s, ExpDate = ExpirationDateTime_t, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n    (CTI_DomainIndicators_CL\r\n    | where Active_b == true\r\n    | extend Type = \"Domain\", Value = Domain_s, ExpDate = ExpirationDateTime_t, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n    (CTI_URLIndicators_CL\r\n    | where Active_b == true\r\n    | extend Type = \"URL\", Value = URL_s, ExpDate = ExpirationDateTime_t, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n    (CTI_FileHashIndicators_CL\r\n    | where Active_b == true\r\n    | extend Type = \"File Hash\", Value = coalesce(SHA256_s, SHA1_s, MD5_s), ExpDate = ExpirationDateTime_t, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n    // Expiring indicators\r\n    \"{StatusCategory}\" == \"Expiring\",\r\n    union \r\n    (CTI_IPIndicators_CL\r\n    | where Active_b == true and ExpirationDateTime_t between (now() .. expiryThreshold)\r\n    | extend Type = \"IP\", Value = IPAddress_s, ExpDate = ExpirationDateTime_t, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n    (CTI_DomainIndicators_CL\r\n    | where Active_b == true and ExpirationDateTime_t between (now() .. expiryThreshold)\r\n    | extend Type = \"Domain\", Value = Domain_s, ExpDate = ExpirationDateTime_t, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n    (CTI_URLIndicators_CL\r\n    | where Active_b == true and ExpirationDateTime_t between (now() .. expiryThreshold)\r\n    | extend Type = \"URL\", Value = URL_s, ExpDate = ExpirationDateTime_t, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n    (CTI_FileHashIndicators_CL\r\n    | where Active_b == true and ExpirationDateTime_t between (now() .. expiryThreshold)\r\n    | extend Type = \"File Hash\", Value = coalesce(SHA256_s, SHA1_s, MD5_s), ExpDate = ExpirationDateTime_t, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n    // Expired indicators\r\n    \"{StatusCategory}\" == \"Expired\",\r\n    union \r\n    (CTI_IPIndicators_CL\r\n    | where (Active_b == false or ExpirationDateTime_t < now()) and ExpirationDateTime_t between (expiredThreshold .. now())\r\n    | extend Type = \"IP\", Value = IPAddress_s, ExpDate = ExpirationDateTime_t, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n    (CTI_DomainIndicators_CL\r\n    | where (Active_b == false or ExpirationDateTime_t < now()) and ExpirationDateTime_t between (expiredThreshold .. now())\r\n    | extend Type = \"Domain\", Value = Domain_s, ExpDate = ExpirationDateTime_t, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n    (CTI_URLIndicators_CL\r\n    | where (Active_b == false or ExpirationDateTime_t < now()) and ExpirationDateTime_t between (expiredThreshold .. now())\r\n    | extend Type = \"URL\", Value = URL_s, ExpDate = ExpirationDateTime_t, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n    (CTI_FileHashIndicators_CL\r\n    | where (Active_b == false or ExpirationDateTime_t < now()) and ExpirationDateTime_t between (expiredThreshold .. now())\r\n    | extend Type = \"File Hash\", Value = coalesce(SHA256_s, SHA1_s, MD5_s), ExpDate = ExpirationDateTime_t, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n    // Recently added indicators\r\n    \"{StatusCategory}\" == \"Recent\",\r\n    union \r\n    (CTI_IPIndicators_CL\r\n    | where coalesce(FirstSeen_t, TimeGenerated) > recentThreshold\r\n    | extend Type = \"IP\", Value = IPAddress_s, ExpDate = ExpirationDateTime_t, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n    (CTI_DomainIndicators_CL\r\n    | where coalesce(FirstSeen_t, TimeGenerated) > recentThreshold\r\n    | extend Type = \"Domain\", Value = Domain_s, ExpDate = ExpirationDateTime_t, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n    (CTI_URLIndicators_CL\r\n    | where coalesce(FirstSeen_t, TimeGenerated) > recentThreshold\r\n    | extend Type = \"URL\", Value = URL_s, ExpDate = ExpirationDateTime_t, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n    (CTI_FileHashIndicators_CL\r\n    | where coalesce(FirstSeen_t, TimeGenerated) > recentThreshold\r\n    | extend Type = \"File Hash\", Value = coalesce(SHA256_s, SHA1_s, MD5_s), ExpDate = ExpirationDateTime_t, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n    // Default - empty result\r\n    (print Type = \"\"| where 1 == 0)\r\n);\r\n\r\n// Apply type filter if applicable\r\nlet typeFilteredQuery = \r\ncase(\r\n    \"{FilterType}\" == \"All\", indicatorQuery,\r\n    indicatorQuery | where Type == \"{FilterType}\"\r\n);\r\n\r\n// Get final result\r\ntypeFilteredQuery\r\n| project Type, Value, ExpDate, Added, \r\n         ThreatType = coalesce(ThreatType_s, \"\"), \r\n         Confidence = coalesce(ConfidenceScore_d, Confidence_d, 0),\r\n         Source = coalesce(SourceFeed_s, Source_s, \"\")\r\n| order by ExpDate asc",
+              "query": "// Status summary for indicators\r\nlet expiryThreshold = now()+7d;\r\nlet recentThreshold = now()-7d;\r\nlet expiredThreshold = now()-30d;\r\n\r\n// Define what indicators we need based on status category\r\nlet indicatorQuery = \r\ncase(\r\n    // Active indicators\r\n    \"{StatusCategory}\" == \"Active\",\r\n    CTI_ThreatIntelIndicator_CL\r\n    | where Active_b == true\r\n    | extend Type = Type_s, Value = Value_s, ExpDate = ValidUntil_t, Added = coalesce(CreatedTimeUtc_t, TimeGenerated),\r\n    // Expiring indicators\r\n    \"{StatusCategory}\" == \"Expiring\",\r\n    CTI_ThreatIntelIndicator_CL\r\n    | where Active_b == true and ValidUntil_t between (now() .. expiryThreshold)\r\n    | extend Type = Type_s, Value = Value_s, ExpDate = ValidUntil_t, Added = coalesce(CreatedTimeUtc_t, TimeGenerated),\r\n    // Expired indicators\r\n    \"{StatusCategory}\" == \"Expired\",\r\n    CTI_ThreatIntelIndicator_CL\r\n    | where (Active_b == false or ValidUntil_t < now()) and ValidUntil_t between (expiredThreshold .. now())\r\n    | extend Type = Type_s, Value = Value_s, ExpDate = ValidUntil_t, Added = coalesce(CreatedTimeUtc_t, TimeGenerated),\r\n    // Recently added indicators\r\n    \"{StatusCategory}\" == \"Recent\",\r\n    CTI_ThreatIntelIndicator_CL\r\n    | where coalesce(CreatedTimeUtc_t, TimeGenerated) > recentThreshold\r\n    | extend Type = Type_s, Value = Value_s, ExpDate = ValidUntil_t, Added = coalesce(CreatedTimeUtc_t, TimeGenerated),\r\n    // Default - empty result\r\n    CTI_ThreatIntelIndicator_CL\r\n    | where 1 == 0\r\n);\r\n\r\n// Apply type filter if applicable\r\nlet typeFilteredQuery = \r\ncase(\r\n    \"{FilterType}\" == \"All\", indicatorQuery,\r\n    \"{FilterType}\" == \"file\", indicatorQuery | where Type startswith \"file-\" or Type == \"file\",\r\n    indicatorQuery | where Type == \"{FilterType}\"\r\n);\r\n\r\n// Get final result\r\ntypeFilteredQuery\r\n| project \r\n    IndicatorId = IndicatorId_g, \r\n    Type, \r\n    Value, \r\n    ExpDate, \r\n    Added, \r\n    ThreatType = ThreatType_s, \r\n    Confidence = Confidence_d,\r\n    Source = Source_s,\r\n    Distribution = DistributionTargets_s,\r\n    TLP = TLP_s,\r\n    Action = Action_s\r\n| order by ExpDate asc",
               "size": 0,
               "title": "{StatusCategory} Indicators - {FilterType}",
               "noDataMessage": "No indicators found in this category",
               "timeContext": {
                 "durationMs": 604800000
               },
+              "exportedParameters": [
+                {
+                  "fieldName": "IndicatorId",
+                  "parameterName": "SelectedIndicatorId",
+                  "parameterType": 1
+                },
+                {
+                  "fieldName": "Type",
+                  "parameterName": "SelectedIndicatorType",
+                  "parameterType": 1
+                },
+                {
+                  "fieldName": "Value",
+                  "parameterName": "SelectedIndicatorValue",
+                  "parameterType": 1
+                }
+              ],
               "queryType": 0,
               "resourceType": "microsoft.operationalinsights/workspaces",
               "gridSettings": {
@@ -991,6 +2190,10 @@
                 ],
                 "labelSettings": [
                   {
+                    "columnId": "IndicatorId",
+                    "label": "Indicator ID"
+                  },
+                  {
                     "columnId": "Type",
                     "label": "Indicator Type"
                   },
@@ -1017,11 +2220,34 @@
                   {
                     "columnId": "Source",
                     "label": "Source Feed"
+                  },
+                  {
+                    "columnId": "Distribution",
+                    "label": "Distribution Targets"
+                  },
+                  {
+                    "columnId": "TLP",
+                    "label": "TLP"
+                  },
+                  {
+                    "columnId": "Action",
+                    "label": "Action"
                   }
                 ]
               }
             },
             "name": "IndicatorStatusTable"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "## Selected Indicator Details\n\n- **ID**: {SelectedIndicatorId}\n- **Type**: {SelectedIndicatorType}\n- **Value**: {SelectedIndicatorValue}\n\nSelect an action below to manage this indicator."
+            },
+            "conditionalVisibility": {
+              "parameterName": "SelectedIndicatorId",
+              "comparison": "isNotEqualTo"
+            },
+            "name": "SelectedIndicatorInfo"
           },
           {
             "type": 9,
@@ -1042,7 +2268,7 @@
                     "additionalResourceOptions": [],
                     "showDefault": false
                   },
-                  "jsonData": "[\n    { \"value\": \"none\", \"label\": \"-- Select Action --\" },\n    { \"value\": \"expire\", \"label\": \"Expire Selected\" },\n    { \"value\": \"extend\", \"label\": \"Extend Expiration\" },\n    { \"value\": \"reactivate\", \"label\": \"Reactivate Expired\" }\n]",
+                  "jsonData": "[\n    { \"value\": \"none\", \"label\": \"-- Select Action --\" },\n    { \"value\": \"expire\", \"label\": \"Expire/Deactivate\" },\n    { \"value\": \"extend\", \"label\": \"Extend Expiration\" },\n    { \"value\": \"reactivate\", \"label\": \"Reactivate Expired\" },\n    { \"value\": \"distribution\", \"label\": \"Update Distribution Targets\" }\n]",
                   "value": "none"
                 },
                 {
@@ -1065,415 +2291,69 @@
                         "resultVal": "Select an action first"
                       }
                     }
-                  ]
+                  ],
+                  "conditionalVisibility": {
+                    "parameterName": "SelectedIndicatorId",
+                    "comparison": "isNotEqualTo"
+                  }
                 }
               ],
               "style": "formVertical",
               "queryType": 0,
               "resourceType": "microsoft.operationalinsights/workspaces"
             },
+            "conditionalVisibility": {
+              "parameterName": "SelectedIndicatorId",
+              "comparison": "isNotEqualTo"
+            },
             "name": "ActionParameters"
           },
           {
-            "type": 1,
+            "type": 12,
             "content": {
-              "json": "## Selected action: {ActionType}\n\nPlease select one or more indicators from the table above and then click \"Apply Action\" to perform bulk operations. For the selected action, the following will occur:\n\n- **Expire Selected**: Will mark the selected indicators as inactive immediately\n- **Extend Expiration**: Will add 30 days to the current expiration date\n- **Reactivate Expired**: Will reactivate expired indicators with a new 30-day expiration\n\n> Note: In production, this would be implemented using the Data function to update the selected indicators. The current implementation is for demonstration purposes."
-            },
-            "conditionalVisibility": {
-              "parameterName": "ActionType",
-              "comparison": "isNotEqualTo",
-              "value": "none"
-            },
-            "name": "ActionDescription"
-          },
-          {
-            "type": 3,
-            "content": {
-              "version": "KqlItem/1.0",
-              "query": "// Status summary for indicators\r\nlet expiryThreshold = now()+7d;\r\nlet recentThreshold = now()-7d;\r\nlet expiredThreshold = now()-30d;\r\n\r\n// Get counts for different statuses\r\nunion \r\n// Active indicators\r\n(union \r\n    (CTI_IPIndicators_CL\r\n    | where Active_b == true\r\n    | extend Type = \"IP\"),\r\n    (CTI_DomainIndicators_CL\r\n    | where Active_b == true\r\n    | extend Type = \"Domain\"),\r\n    (CTI_URLIndicators_CL\r\n    | where Active_b == true\r\n    | extend Type = \"URL\"),\r\n    (CTI_FileHashIndicators_CL\r\n    | where Active_b == true\r\n    | extend Type = \"File Hash\")\r\n| summarize ActiveCount = count() by Type),\r\n// Expiring indicators\r\n(union \r\n    (CTI_IPIndicators_CL\r\n    | where Active_b == true and ExpirationDateTime_t between (now() .. expiryThreshold)\r\n    | extend Type = \"IP\"),\r\n    (CTI_DomainIndicators_CL\r\n    | where Active_b == true and ExpirationDateTime_t between (now() .. expiryThreshold)\r\n    | extend Type = \"Domain\"),\r\n    (CTI_URLIndicators_CL\r\n    | where Active_b == true and ExpirationDateTime_t between (now() .. expiryThreshold)\r\n    | extend Type = \"URL\"),\r\n    (CTI_FileHashIndicators_CL\r\n    | where Active_b == true and ExpirationDateTime_t between (now() .. expiryThreshold)\r\n    | extend Type = \"File Hash\")\r\n| summarize ExpiringCount = count() by Type),\r\n// Expired indicators\r\n(union \r\n    (CTI_IPIndicators_CL\r\n    | where (Active_b == false or ExpirationDateTime_t < now()) and ExpirationDateTime_t between (expiredThreshold .. now())\r\n    | extend Type = \"IP\"),\r\n    (CTI_DomainIndicators_CL\r\n    | where (Active_b == false or ExpirationDateTime_t < now()) and ExpirationDateTime_t between (expiredThreshold .. now())\r\n    | extend Type = \"Domain\"),\r\n    (CTI_URLIndicators_CL\r\n    | where (Active_b == false or ExpirationDateTime_t < now()) and ExpirationDateTime_t between (expiredThreshold .. now())\r\n    | extend Type = \"URL\"),\r\n    (CTI_FileHashIndicators_CL\r\n    | where (Active_b == false or ExpirationDateTime_t < now()) and ExpirationDateTime_t between (expiredThreshold .. now())\r\n    | extend Type = \"File Hash\")\r\n| summarize ExpiredCount = count() by Type),\r\n// Recently added indicators\r\n(union \r\n    (CTI_IPIndicators_CL\r\n    | where coalesce(FirstSeen_t, TimeGenerated) > recentThreshold\r\n    | extend Type = \"IP\"),\r\n    (CTI_DomainIndicators_CL\r\n    | where coalesce(FirstSeen_t, TimeGenerated) > recentThreshold\r\n    | extend Type = \"Domain\"),\r\n    (CTI_URLIndicators_CL\r\n    | where coalesce(FirstSeen_t, TimeGenerated) > recentThreshold\r\n    | extend Type = \"URL\"),\r\n    (CTI_FileHashIndicators_CL\r\n    | where coalesce(FirstSeen_t, TimeGenerated) > recentThreshold\r\n    | extend Type = \"File Hash\")\r\n| summarize RecentCount = count() by Type)\r\n| summarize Active = sum(ActiveCount), Expiring = sum(ExpiringCount), Expired = sum(ExpiredCount), RecentlyAdded = sum(RecentCount) by Type",
-              "size": 1,
-              "title": "Indicator Status Summary",
-              "noDataMessage": "No indicator data available",
-              "timeContext": {
-                "durationMs": 604800000
-              },
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces",
-              "gridSettings": {
-                "formatters": [
-                  {
-                    "columnMatch": "Active",
-                    "formatter": 8,
-                    "numberFormat": {
-                      "unit": 0,
-                      "options": {
-                        "style": "decimal",
-                        "minimumFractionDigits": 0,
-                        "maximumFractionDigits": 0
-                      }
-                    },
-                    "visualizations": {
-                      "greenBlue": true
-                    }
-                  },
-                  {
-                    "columnMatch": "Expiring",
-                    "formatter": 8,
-                    "numberFormat": {
-                      "unit": 0,
-                      "options": {
-                        "style": "decimal",
-                        "minimumFractionDigits": 0,
-                        "maximumFractionDigits": 0
-                      }
-                    },
-                    "visualizations": {
-                      "palette": "blueDark"
-                    }
-                  },
-                  {
-                    "columnMatch": "Expired",
-                    "formatter": 8,
-                    "numberFormat": {
-                      "unit": 0,
-                      "options": {
-                        "style": "decimal",
-                        "minimumFractionDigits": 0,
-                        "maximumFractionDigits": 0
-                      }
-                    },
-                    "visualizations": {
-                      "palette": "redBright"
-                    }
-                  },
-                  {
-                    "columnMatch": "RecentlyAdded",
-                    "formatter": 8,
-                    "numberFormat": {
-                      "unit": 0,
-                      "options": {
-                        "style": "decimal",
-                        "minimumFractionDigits": 0,
-                        "maximumFractionDigits": 0
-                      }
-                    },
-                    "visualizations": {
-                      "palette": "greenDark"
-                    }
-                  }
-                ]
-              }
-            },
-            "name": "IndicatorStatusSummary"
-          }
-        ],
-        "conditionalVisibility": {
-          "parameterName": "WorkbookTab",
-          "comparison": "isEqualTo",
-          "value": "IndicatorStatus"
-        }
-      },
-      "name": "IndicatorStatusTab"
-    },
-    {
-      "type": 12,
-      "content": {
-        "version": "NotebookGroup/1.0",
-        "groupType": "editable",
-        "title": "Recent Submissions",
-        "items": [
-          {
-            "type": 9,
-            "content": {
-              "version": "KqlParameterItem/1.0",
-              "parameters": [
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "title": "Distribution Management",
+              "items": [
                 {
-                  "id": "ff837db0-dbec-472a-bb1d-2068a237e072",
-                  "version": "KqlParameterItem/1.0",
-                  "name": "RecentTimeRange",
-                  "label": "Time Range",
-                  "type": 4,
-                  "description": "Filter to show recent submissions",
-                  "isRequired": true,
-                  "value": {
-                    "durationMs": 604800000
+                  "type": 9,
+                  "content": {
+                    "version":": 3,
+                    "title": "Validation",
+                    "noDataMessage": "Enter values above to validate",
+                    "timeContext": {
+                      "durationMs": 86400000
+                    },
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
                   },
-                  "typeSettings": {
-                    "selectableValues": [
+                  "name": "IPValidation"
+                },
+                {
+                  "type": 9,
+                  "content": {
+                    "version": "KqlParameterItem/1.0",
+                    "parameters": [
                       {
-                        "durationMs": 300000
-                      },
-                      {
-                        "durationMs": 900000
-                      },
-                      {
-                        "durationMs": 1800000
-                      },
-                      {
-                        "durationMs": 3600000
-                      },
-                      {
-                        "durationMs": 14400000
-                      },
-                      {
-                        "durationMs": 43200000
-                      },
-                      {
-                        "durationMs": 86400000
-                      },
-                      {
-                        "durationMs": 172800000
-                      },
-                      {
-                        "durationMs": 259200000
-                      },
-                      {
-                        "durationMs": 604800000
-                      },
-                      {
-                        "durationMs": 1209600000
-                      },
-                      {
-                        "durationMs": 2419200000
-                      },
-                      {
-                        "durationMs": 2592000000
-                      },
-                      {
-                        "durationMs": 5184000000
+                        "id": "a0e31e14-1c39-448e-ac0b-87378e6da14b",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "IPSubmitButton",
+                        "type": 1,
+                        "value": "Submit IP Indicator",
+                        "typeSettings": {
+                          "parameterMode": "button"
+                        }
                       }
                     ],
-                    "allowCustom": true
-                  }
-                }
-              ],
-              "style": "pills",
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces"
-            },
-            "name": "RecentSubmissionsParameters"
-          },
-          {
-            "type": 3,
-            "content": {
-              "version": "KqlItem/1.0",
-              "query": "// Union all CTI indicator tables to show recent submissions\r\nunion \r\n(CTI_IPIndicators_CL\r\n| where SourceFeed_s == \"Manual\" and TimeGenerated {RecentTimeRange}\r\n| extend Type = \"IP\", Value = IPAddress_s\r\n| project TimeGenerated, Type, Value, ThreatType = ThreatType_s, TLP = TLP_s, Confidence = ConfidenceScore_d),\r\n(CTI_DomainIndicators_CL\r\n| where SourceFeed_s == \"Manual\" and TimeGenerated {RecentTimeRange}\r\n| extend Type = \"Domain\", Value = Domain_s\r\n| project TimeGenerated, Type, Value, ThreatType = ThreatType_s, TLP = TLP_s, Confidence = ConfidenceScore_d),\r\n(CTI_URLIndicators_CL\r\n| where SourceFeed_s == \"Manual\" and TimeGenerated {RecentTimeRange}\r\n| extend Type = \"URL\", Value = URL_s\r\n| project TimeGenerated, Type, Value, ThreatType = ThreatType_s, TLP = TLP_s, Confidence = ConfidenceScore_d),\r\n(CTI_FileHashIndicators_CL\r\n| where SourceFeed_s == \"Manual\" and TimeGenerated {RecentTimeRange}\r\n| extend Type = \"FileHash\", Value = coalesce(SHA256_s, SHA1_s, MD5_s)\r\n| project TimeGenerated, Type, Value, ThreatType = ThreatType_s, TLP = TLP_s, Confidence = ConfidenceScore_d)\r\n| order by TimeGenerated desc\r\n",
-              "size": 0,
-              "title": "Recent Manual Submissions",
-              "noDataMessage": "No manual submissions found in the selected time range",
-              "timeContext": {
-                "durationMs": 0
-              },
-              "timeContextFromParameter": "RecentTimeRange",
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces",
-              "gridSettings": {
-                "formatters": [
-                  {
-                    "columnMatch": "TimeGenerated",
-                    "formatter": 6,
-                    "dateFormat": {
-                      "showUtcTime": false,
-                      "formatName": "shortDateTimePattern"
-                    }
+                    "style": "formVertical",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
                   },
-                  {
-                    "columnMatch": "Confidence",
-                    "formatter": 8,
-                    "numberFormat": {
-                      "unit": 0,
-                      "options": {
-                        "style": "decimal",
-                        "minimumFractionDigits": 0,
-                        "maximumFractionDigits": 0
-                      }
-                    },
-                    "visualizations": {
-                      "greenRedGradient": {
-                        "min": 0,
-                        "max": 100
-                      }
-                    }
-                  }
-                ],
-                "sortBy": [
-                  {
-                    "itemKey": "TimeGenerated",
-                    "sortOrder": 2
-                  }
-                ],
-                "labelSettings": [
-                  {
-                    "columnId": "TimeGenerated",
-                    "label": "Submission Time"
-                  },
-                  {
-                    "columnId": "Type",
-                    "label": "Indicator Type"
-                  },
-                  {
-                    "columnId": "Value",
-                    "label": "Indicator Value"
-                  },
-                  {
-                    "columnId": "ThreatType",
-                    "label": "Threat Type"
-                  },
-                  {
-                    "columnId": "TLP",
-                    "label": "TLP"
-                  },
-                  {
-                    "columnId": "Confidence",
-                    "label": "Confidence Score"
-                  }
-                ]
-              },
-              "sortBy": [
+                  "name": "IPSubmitButton"
+                },
                 {
-                  "itemKey": "TimeGenerated",
-                  "sortOrder": 2
-                }
-              ]
-            },
-            "name": "RecentSubmissionsList"
-          },
-          {
-            "type": 3,
-            "content": {
-              "version": "KqlItem/1.0",
-              "query": "// Count submissions by type\r\nunion \r\n(CTI_IPIndicators_CL\r\n| where SourceFeed_s == \"Manual\" and TimeGenerated {RecentTimeRange}\r\n| extend Type = \"IP\"),\r\n(CTI_DomainIndicators_CL\r\n| where SourceFeed_s == \"Manual\" and TimeGenerated {RecentTimeRange}\r\n| extend Type = \"Domain\"),\r\n(CTI_URLIndicators_CL\r\n| where SourceFeed_s == \"Manual\" and TimeGenerated {RecentTimeRange}\r\n| extend Type = \"URL\"),\r\n(CTI_FileHashIndicators_CL\r\n| where SourceFeed_s == \"Manual\" and TimeGenerated {RecentTimeRange}\r\n| extend Type = \"File Hash\")\r\n| summarize Count = count() by Type\r\n| order by Count desc",
-              "size": 0,
-              "title": "Submissions by Type",
-              "noDataMessage": "No manual submissions found in the selected time range",
-              "timeContext": {
-                "durationMs": 0
-              },
-              "timeContextFromParameter": "RecentTimeRange",
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces",
-              "visualization": "piechart",
-              "graphSettings": {
-                "type": 0,
-                "topContent": {
-                  "columnMatch": "Type",
-                  "formatter": 1
-                },
-                "centerContent": {
-                  "columnMatch": "Count",
-                  "formatter": 1,
-                  "numberFormat": {
-                    "unit": 17,
-                    "options": {
-                      "maximumSignificantDigits": 3,
-                      "maximumFractionDigits": 2
-                    }
-                  }
-                }
-              },
-              "tileSettings": {
-                "showBorder": false,
-                "titleContent": {
-                  "columnMatch": "Type",
-                  "formatter": 1
-                },
-                "leftContent": {
-                  "columnMatch": "Count",
-                  "formatter": 12,
-                  "formatOptions": {
-                    "palette": "auto"
-                  },
-                  "numberFormat": {
-                    "unit": 17,
-                    "options": {
-                      "maximumSignificantDigits": 3,
-                      "maximumFractionDigits": 2
-                    }
-                  }
-                }
-              },
-              "chartSettings": {
-                "seriesLabelSettings": [
-                  {
-                    "seriesName": "IP",
-                    "color": "blue"
-                  },
-                  {
-                    "seriesName": "Domain",
-                    "color": "orange"
-                  },
-                  {
-                    "seriesName": "URL",
-                    "color": "green"
-                  },
-                  {
-                    "seriesName": "File Hash",
-                    "color": "purple"
-                  }
-                ]
-              }
-            },
-            "customWidth": "50",
-            "name": "SubmissionsByTypeChart"
-          },
-          {
-            "type": 3,
-            "content": {
-              "version": "KqlItem/1.0",
-              "query": "// Group submissions by day\r\nunion \r\n(CTI_IPIndicators_CL\r\n| where SourceFeed_s == \"Manual\" and TimeGenerated {RecentTimeRange}\r\n| extend Type = \"IP\"),\r\n(CTI_DomainIndicators_CL\r\n| where SourceFeed_s == \"Manual\" and TimeGenerated {RecentTimeRange}\r\n| extend Type = \"Domain\"),\r\n(CTI_URLIndicators_CL\r\n| where SourceFeed_s == \"Manual\" and TimeGenerated {RecentTimeRange}\r\n| extend Type = \"URL\"),\r\n(CTI_FileHashIndicators_CL\r\n| where SourceFeed_s == \"Manual\" and TimeGenerated {RecentTimeRange}\r\n| extend Type = \"File Hash\")\r\n| summarize Count = count() by Type, bin(TimeGenerated, 1d)\r\n| order by TimeGenerated asc",
-              "size": 0,
-              "title": "Submission Trend",
-              "noDataMessage": "No manual submissions found in the selected time range",
-              "timeContext": {
-                "durationMs": 0
-              },
-              "timeContextFromParameter": "RecentTimeRange",
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces",
-              "visualization": "timechart",
-              "chartSettings": {
-                "seriesLabelSettings": [
-                  {
-                    "seriesName": "IP",
-                    "color": "blue"
-                  },
-                  {
-                    "seriesName": "Domain",
-                    "color": "orange"
-                  },
-                  {
-                    "seriesName": "URL",
-                    "color": "green"
-                  },
-                  {
-                    "seriesName": "File Hash",
-                    "color": "purple"
-                  }
-                ]
-              }
-            },
-            "customWidth": "50",
-            "name": "SubmissionsTrendChart"
-          }
-        ],
-        "conditionalVisibility": {
-          "parameterName": "WorkbookTab",
-          "comparison": "isEqualTo",
-          "value": "RecentSubmissions"
-        }
-      },
-      "name": "RecentSubmissionsTab"
-    },
-    {
-      "type": 1,
-      "content": {
-        "json": "## Implementation Instructions\n\n### Required Permissions\n\nUsers need to have appropriate permissions to use the custom tables:\n\n- `Microsoft Sentinel Contributor` role on the Log Analytics workspace\n- Or create a custom role with `microsoft.operationalinsights/workspaces/tables/write` permission\n\n### Table Structure Implementation\n\nThis workbook assumes the following tables have been created:\n\n- `CTI_IPIndicators_CL` - For IP address indicators\n- `CTI_DomainIndicators_CL` - For domain name indicators\n- `CTI_URLIndicators_CL` - For URL indicators\n- `CTI_FileHashIndicators_CL` - For file hash indicators\n\n### Production Implementation\n\nIn a production environment, you'll need to update the submission visualizations with the appropriate Data function calls. For example:\n\n```kql\n_Data_PutBlob(\"CTI_IPIndicators_CL\", \n  dynamic({\n    \"IPAddress_s\": \"{IPAddress}\", \n    \"IndicatorId_g\": guid(), \n    \"ConfidenceScore_d\": {IPConfidenceScore}, \n    \"SourceFeed_s\": \"{SourceFeed}\", \n    \"FirstSeen_t\": now(), \n    \"LastSeen_t\": now(), \n    \"ExpirationDateTime_t\": now() + {IPExpirationDays}d, \n    \"ThreatType_s\": \"{IPThreatType}\", \n    \"TLP_s\": \"{IPTLP}\", \n    \"Description_s\": \"{IPDescription}\", \n    \"Action_s\": \"{IPAction}\", \n    \"DistributionTargets_s\": \"{Distribution}\", \n    \"Active_b\": true\n  })\n)\n```\n\n### Integration with Logic Apps\n\nThis workbook is designed to work with the Logic Apps included in the Central Threat Intelligence solution for indicator distribution."
-      },
-      "name": "ImplementationInstructions"
-    }
-  ],
-  "fallbackResourceIds": [
-    "Azure Monitor"
-  ],
-  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
-}
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now() + {IPExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// Define TLP in AdditionalFields\r\nlet additionalFields = dynamic({\r\n    \"TLPLevel\": \"{IPTLP}\"\r\n});\r\n\r\n// First validate the inputs\r\nlet ipRegex = @'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$';\r\nlet isValidIP = '{IPAddress}' matches regex ipRegex;\r\nlet confidenceInRange = {IPConfidenceScore} between (0 .. 100);\r\nlet daysInRange = {IPExpirationDays} between (1 .. 365);\r\n\r\nprint Result = case(\r\n    not(isValidIP), 'Invalid IP address format',\r\n    not(confidenceInRange), 'Confidence score must be between 0 and 100',\r\n    not(daysInRange), 'Expiration days must be between 1 and 365',\r\n    \"Submitting indicator...\");\r\n\r\n// If validation passes, submit the indicator\r\nprint Operation = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), 'Validation failed',\r\n    \"Submitting IP indicator to CTI_ThreatIntelIndicator_CL\");\r\n  \r\n// Only execute the insert if all validations pass\r\nlet insertResult = () {\r\n    let insertSuccess = true;\r\n    print \r\n        InsertedIP = '{IPAddress}',\r\n        InsertedIndicatorId = indicatorId,\r\n        InsertResult = \"Successfully added IP indicator\"\r\n};\r\n\r\nprint InsertStatus = case(\r\n    not(isValidIP) or not(confidenceInRange) or not(daysInRange), \r\n    'Submission canceled due to validation errors',\r\n    'The indicator will be added to CTI_ThreatIntelIndicator_CL, then automatically synchronized to CTI_IPIndicators_CL');\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\n// This would call the actual data insertion function\r\n// In a real workbook, you would use the Data function to insert\r\n// For demonstration purposes, we're just showing the data that would be inserted\r\nprint DataToBeInserted = strcat(  \r\n  'Type_s: \"ip-addr\", ',\r\n  'Value_s: \"{IPAddress}\", ',\r\n  'Pattern_s: \"[ipv4-addr:value = \\'', '{IPAddress}', '\\']\"', ', ',\r\n  'PatternType_s: \"stix\", ',\r\n  'Name_s: \"IP: {IPAddress}\", ',\r\n  'Description_s: \"{IPDescription}\", ',\r\n  'Action_s: \"{IPAction}\", ',\r\n  'Confidence_d: ', {IPConfidenceScore}, ', ',\r\n  'ValidFrom_t: \"', now, '\", ',\r\n  'ValidUntil_t: \"', expirationDate, '\", ',\r\n  'Source_s: \"{SourceFeed}\", ',\r\n  'TLP_s: \"{IPTLP}\", ',\r\n  'ThreatType_s: \"{IPThreatType}\", ',\r\n  'DistributionTargets_s: \"', distributionTargets, '\", ',\r\n  'AdditionalFields: ', additionalFields, ', ',\r\n  'Active_b: true, ',\r\n  'IndicatorId_g: \"', indicatorId, '\"')\r\n",
+                    "size
