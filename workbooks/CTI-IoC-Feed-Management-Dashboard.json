@@ -1,0 +1,1508 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# Central Threat Intelligence - Integration Hub\n\nThis workbook enables you to manage threat intelligence feeds, configure integrations, and monitor data flow across your security ecosystem. Use it to review source data, configure distribution settings, and troubleshoot integration issues.\n\n> **Note:** This is one of three workbooks in the CTI solution. Also see the [CTI Dashboard](https://portal.azure.com/#blade/Microsoft_Azure_Monitoring/AzureMonitoringBrowseBlade/workbooks/name/cti-dashboard) and [CTI Indicator Management](https://portal.azure.com/#blade/Microsoft_Azure_Monitoring/AzureMonitoringBrowseBlade/workbooks/name/cti-indicator-management) workbooks."
+      },
+      "name": "introduction"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "991a8a25-4b27-4ac7-91d8-026447ee9e21",
+            "version": "KqlParameterItem/1.0",
+            "name": "WorkbookTab",
+            "label": "Workbook Tab",
+            "type": 2,
+            "isRequired": true,
+            "value": "SourceReview",
+            "typeSettings": {
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "jsonData": "[\n    { \"value\": \"SourceReview\", \"label\": \"Source Review\" },\n    { \"value\": \"FeedConfiguration\", \"label\": \"Feed Configuration\" },\n    { \"value\": \"Distribution\", \"label\": \"Distribution Management\" },\n    { \"value\": \"SystemHealth\", \"label\": \"System Health\" }\n]"
+          },
+          {
+            "id": "7af26c4a-a690-4922-87e3-42c58d7c5629",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "label": "Time Range",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 604800000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 3600000
+                },
+                {
+                  "durationMs": 86400000
+                },
+                {
+                  "durationMs": 172800000
+                },
+                {
+                  "durationMs": 604800000
+                },
+                {
+                  "durationMs": 2592000000
+                },
+                {
+                  "durationMs": 5184000000
+                }
+              ],
+              "allowCustom": true
+            }
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "GlobalParameters"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "title": "Source Review",
+        "items": [
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "parameters": [
+                {
+                  "id": "64daa8c2-8ee7-4bbf-a1ef-9e8e57970b9d",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "SourceTable",
+                  "label": "Source Table",
+                  "type": 2,
+                  "isRequired": true,
+                  "multiSelect": false,
+                  "quote": "'",
+                  "delimiter": ",",
+                  "value": "CTI_StixData_CL",
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  },
+                  "jsonData": "[\n    { \"value\": \"CTI_StixData_CL\", \"label\": \"STIX Data\" },\n    { \"value\": \"CTI_ThreatIntelIndicator_CL\", \"label\": \"Generic Threat Indicators\" }\n]"
+                },
+                {
+                  "id": "6b2d596d-4bc3-4a96-900d-5e91acc0bbc6",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "IndicatorFilter",
+                  "label": "Filter",
+                  "type": 1,
+                  "description": "Filter by indicator value (partial match)",
+                  "isRequired": false,
+                  "value": ""
+                },
+                {
+                  "id": "37fb9cc8-fcd3-4ec3-8913-7ad7ecea9131",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "MinConfidence",
+                  "label": "Min Confidence",
+                  "type": 1,
+                  "description": "Only show indicators >= this confidence score",
+                  "isRequired": true,
+                  "value": "50"
+                }
+              ],
+              "style": "pills",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces"
+            },
+            "name": "SourceReviewParameters"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "let minConfidence = {MinConfidence};\r\nlet filter = \"{IndicatorFilter}\";\r\n\r\nif (\"{SourceTable}\" == \"CTI_StixData_CL\") {\r\n    CTI_StixData_CL\r\n    | where TimeGenerated {TimeRange}\r\n    | extend STIXType = tolower(STIXType)\r\n    | where STIXType in (\"indicator\", \"threat-actor\", \"malware\", \"attack-pattern\")\r\n    | where isempty(filter) or RawSTIX contains filter\r\n    | extend IndicatorId = STIXId\r\n    | project TimeGenerated, Source, STIXType, STIXId, RawSTIX, CreatedBy\r\n    | order by TimeGenerated desc\r\n    | take 500\r\n}\r\nelse {\r\n    CTI_ThreatIntelIndicator_CL\r\n    | where TimeGenerated {TimeRange}\r\n    | where isempty(filter) or Value_s contains filter\r\n    | where isempty(Confidence_d) or Confidence_d >= minConfidence\r\n    | project TimeGenerated, Type_s, Value_s, Pattern_s, Name_s, Description_s, Confidence_d, Source_s, ValidFrom_t, ValidUntil_t, IndicatorId_g, Active_b\r\n    | order by TimeGenerated desc\r\n    | take 500\r\n}",
+              "size": 0,
+              "title": "Source Indicators",
+              "timeContext": {
+                "durationMs": 0
+              },
+              "timeContextFromParameter": "TimeRange",
+              "exportedParameters": [
+                {
+                  "fieldName": "STIXId",
+                  "parameterName": "SelectedSTIXId",
+                  "parameterType": 1
+                },
+                {
+                  "fieldName": "IndicatorId_g",
+                  "parameterName": "SelectedGenericId",
+                  "parameterType": 1
+                },
+                {
+                  "fieldName": "Value_s",
+                  "parameterName": "SelectedValue",
+                  "parameterType": 1
+                },
+                {
+                  "fieldName": "Type_s",
+                  "parameterName": "SelectedType",
+                  "parameterType": 1
+                }
+              ],
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "TimeGenerated",
+                    "formatter": 6,
+                    "dateFormat": {
+                      "showUtcTime": false,
+                      "formatName": "shortDateTimePattern"
+                    }
+                  },
+                  {
+                    "columnMatch": "Confidence_d",
+                    "formatter": 8,
+                    "numberFormat": {
+                      "unit": 0,
+                      "options": {
+                        "style": "decimal",
+                        "minimumFractionDigits": 0,
+                        "maximumFractionDigits": 0
+                      }
+                    },
+                    "visualizations": {
+                      "greenRedGradient": {
+                        "min": 0,
+                        "max": 100
+                      }
+                    }
+                  },
+                  {
+                    "columnMatch": "ValidFrom_t",
+                    "formatter": 6,
+                    "dateFormat": {
+                      "showUtcTime": false,
+                      "formatName": "shortDateTimePattern"
+                    }
+                  },
+                  {
+                    "columnMatch": "ValidUntil_t",
+                    "formatter": 6,
+                    "dateFormat": {
+                      "showUtcTime": false,
+                      "formatName": "shortDateTimePattern"
+                    }
+                  },
+                  {
+                    "columnMatch": "Active_b",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "==",
+                          "thresholdValue": "true",
+                          "representation": "success",
+                          "text": "Active"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "false",
+                          "representation": "disabled",
+                          "text": "Inactive"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "unknown",
+                          "text": "{0}"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "rowLimit": 500,
+                "filter": true,
+                "sortBy": [
+                  {
+                    "itemKey": "TimeGenerated",
+                    "sortOrder": 2
+                  }
+                ]
+              },
+              "sortBy": [
+                {
+                  "itemKey": "TimeGenerated",
+                  "sortOrder": 2
+                }
+              ]
+            },
+            "name": "SourceIndicatorsQuery"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "## Process Selected Indicator\n\nSelect an indicator from the table above to process it.\n\n### Selected Indicator Details\n\n- **Value**: {SelectedValue}\n- **Type**: {SelectedType}\n- **ID**: {SelectedSTIXId}{SelectedGenericId}\n\n### Processing Actions\n\nOnce you've selected an indicator, use one of these actions to process it:"
+            },
+            "conditionalVisibility": {
+              "parameterName": "SelectedValue",
+              "comparison": "isNotEqualTo",
+              "value": ""
+            },
+            "name": "SelectedIndicatorInfo"
+          },
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "parameters": [
+                {
+                  "id": "e4c87fce-2572-4bfe-8eb5-0a3073f41b3b",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "TargetType",
+                  "label": "Target Type",
+                  "type": 2,
+                  "description": "Select the target table type",
+                  "isRequired": true,
+                  "multiSelect": false,
+                  "quote": "'",
+                  "delimiter": ",",
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  },
+                  "jsonData": "[\n    { \"value\": \"IP\", \"label\": \"IP Address\" },\n    { \"value\": \"Domain\", \"label\": \"Domain Name\" },\n    { \"value\": \"URL\", \"label\": \"URL\" },\n    { \"value\": \"FileHash\", \"label\": \"File Hash\" }\n]"
+                },
+                {
+                  "id": "2ec8a93f-ec2e-4ca5-bb8f-a9f5c75c97a7",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "ConfidenceScore",
+                  "label": "Confidence Score",
+                  "type": 1,
+                  "description": "Confidence score (0-100)",
+                  "isRequired": true,
+                  "value": "70"
+                },
+                {
+                  "id": "5a05c0f9-303a-462b-99bc-5b6a12bfd82f",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "ThreatType",
+                  "label": "Threat Type",
+                  "type": 2,
+                  "description": "Category of threat",
+                  "isRequired": true,
+                  "multiSelect": false,
+                  "quote": "'",
+                  "delimiter": ",",
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  },
+                  "jsonData": "[\n    { \"value\": \"C2\", \"label\": \"Command & Control\" },\n    { \"value\": \"Malware\", \"label\": \"Malware Distribution\" },\n    { \"value\": \"Phishing\", \"label\": \"Phishing\" },\n    { \"value\": \"Scanning\", \"label\": \"Scanning/Reconnaissance\" },\n    { \"value\": \"Botnet\", \"label\": \"Botnet\" },\n    { \"value\": \"TOR\", \"label\": \"TOR Exit Node\" },\n    { \"value\": \"Proxy\", \"label\": \"Proxy/VPN\" },\n    { \"value\": \"Cryptocurrency\", \"label\": \"Cryptocurrency Mining\" },\n    { \"value\": \"Other\", \"label\": \"Other\" }\n]"
+                },
+                {
+                  "id": "4a4a9bfd-cbac-487d-ba9d-35ea4b06b8f5",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "TLP",
+                  "label": "TLP",
+                  "type": 2,
+                  "description": "Traffic Light Protocol designation",
+                  "isRequired": true,
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  },
+                  "jsonData": "[\n    { \"value\": \"TLP:RED\", \"label\": \"TLP:RED\" },\n    { \"value\": \"TLP:AMBER\", \"label\": \"TLP:AMBER\" },\n    { \"value\": \"TLP:GREEN\", \"label\": \"TLP:GREEN\" },\n    { \"value\": \"TLP:WHITE\", \"label\": \"TLP:WHITE\" }\n]",
+                  "value": "TLP:AMBER"
+                },
+                {
+                  "id": "57c2043d-e141-4658-9d16-d75e0cbf1a54",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "Distribution",
+                  "label": "Distribution Targets",
+                  "type": 2,
+                  "description": "Select security products to apply this indicator",
+                  "isRequired": true,
+                  "multiSelect": true,
+                  "quote": "'",
+                  "delimiter": ",",
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  },
+                  "jsonData": "[\n    { \"value\": \"Microsoft Defender XDR\", \"label\": \"Microsoft Defender XDR\" },\n    { \"value\": \"Microsoft Sentinel\", \"label\": \"Microsoft Sentinel\" },\n    { \"value\": \"Exchange Online\", \"label\": \"Exchange Online\" },\n    { \"value\": \"Microsoft Security Copilot\", \"label\": \"Microsoft Security Copilot\" },\n    { \"value\": \"Entra ID\", \"label\": \"Entra ID\" }\n]",
+                  "value": [
+                    "Microsoft Defender XDR"
+                  ]
+                },
+                {
+                  "id": "35c2dae6-c3c5-46e4-913f-dbb0ce5d8255",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "ExpirationDays",
+                  "label": "Expiration (Days)",
+                  "type": 1,
+                  "description": "Days until this indicator expires",
+                  "isRequired": true,
+                  "value": "30"
+                },
+                {
+                  "id": "b3be9821-f4b2-4963-8f0b-fe87d464b4de",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "TriageButton",
+                  "type": 1,
+                  "value": "Process Selected Indicator",
+                  "typeSettings": {
+                    "parameterMode": "button"
+                  }
+                }
+              ],
+              "style": "formVertical",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces"
+            },
+            "conditionalVisibility": {
+              "parameterName": "SelectedValue",
+              "comparison": "isNotEqualTo",
+              "value": ""
+            },
+            "name": "ProcessIndicatorForm"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Generate a GUID for the indicator\r\nlet indicatorId = guid();\r\nlet now = now();\r\nlet expirationDate = now + {ExpirationDays}d;\r\nlet distributionTargets = \"{Distribution}\";\r\n\r\n// Build messages based on the indicator type\r\nprint ProcessingMessage = strcat(\"Processing indicator of type '{TargetType}': {SelectedValue}\");\r\n\r\nprint TargetTable = case(\r\n    \"{TargetType}\" == \"IP\", \"CTI_IPIndicators_CL\",\r\n    \"{TargetType}\" == \"Domain\", \"CTI_DomainIndicators_CL\",\r\n    \"{TargetType}\" == \"URL\", \"CTI_URLIndicators_CL\",\r\n    \"{TargetType}\" == \"FileHash\", \"CTI_FileHashIndicators_CL\",\r\n    \"Unknown\");\r\n\r\n// Data function would be implemented here in a production workbook\r\nprint ActionResult = strcat(\"The indicator is being processed and will be added to \", TargetTable);\r\nprint ActionNotes = \"In a production implementation, the appropriate _Data_PutBlob would be called here with all the collected metadata.\";\r\n\r\nprint DistributionStatus = strcat(\"This indicator will be distributed to: \", distributionTargets);\r\n\r\nprint ExpirationInfo = strcat(\"Indicator will expire on: \", expirationDate);",
+              "size": 0,
+              "title": "Process Indicator",
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "card"
+            },
+            "conditionalVisibility": {
+              "parameterName": "TriageButton",
+              "comparison": "isNotEqualTo",
+              "value": ""
+            },
+            "name": "ProcessIndicator"
+          }
+        ],
+        "conditionalVisibility": {
+          "parameterName": "WorkbookTab",
+          "comparison": "isEqualTo",
+          "value": "SourceReview"
+        }
+      },
+      "name": "SourceReviewTab"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "title": "Feed Configuration",
+        "items": [
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "parameters": [
+                {
+                  "id": "f2ea0d31-be56-453d-8452-0e99e1c0b364",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "FeedManagementView",
+                  "label": "View",
+                  "type": 2,
+                  "isRequired": true,
+                  "value": "FeedList",
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  },
+                  "jsonData": "[\n    { \"value\": \"FeedList\", \"label\": \"Feed List\" },\n    { \"value\": \"AddFeed\", \"label\": \"Add New Feed\" }\n]"
+                }
+              ],
+              "style": "pills",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces"
+            },
+            "name": "FeedManagementParameters"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Query for existing intelligence feeds\r\nunion \r\n    (CTI_IntelligenceFeeds_CL\r\n    | where TimeGenerated {TimeRange}\r\n    | extend Type = FeedType_s, Name = FeedName_s, URL = FeedURL_s, LastUpdate = LastUpdateTime_t, Status = iff(Active_b, \"Active\", \"Inactive\")\r\n    | project FeedId = FeedId_g, Type, Name, URL, Active = Active_b, Status, LastUpdate, Created = TimeGenerated)\r\n| order by Type asc, LastUpdate desc",
+              "size": 0,
+              "title": "Configured Threat Intelligence Feeds",
+              "timeContext": {
+                "durationMs": 0
+              },
+              "timeContextFromParameter": "TimeRange",
+              "exportedParameters": [
+                {
+                  "fieldName": "FeedId",
+                  "parameterName": "SelectedFeedId",
+                  "parameterType": 1
+                },
+                {
+                  "fieldName": "Name",
+                  "parameterName": "SelectedFeedName",
+                  "parameterType": 1
+                },
+                {
+                  "fieldName": "Type",
+                  "parameterName": "SelectedFeedType",
+                  "parameterType": 1
+                }
+              ],
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "Type",
+                    "formatter": 1
+                  },
+                  {
+                    "columnMatch": "Active",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "==",
+                          "thresholdValue": "true",
+                          "representation": "Available",
+                          "text": "Yes"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "false",
+                          "representation": "disabled",
+                          "text": "No"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "unknown",
+                          "text": "Unknown"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "Status",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "colors",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Active",
+                          "representation": "green",
+                          "text": "Active"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Inactive",
+                          "representation": "gray",
+                          "text": "Inactive"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "gray",
+                          "text": "{0}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "LastUpdate",
+                    "formatter": 6,
+                    "dateFormat": {
+                      "showUtcTime": false,
+                      "formatName": "shortDateTimePattern"
+                    }
+                  },
+                  {
+                    "columnMatch": "Created",
+                    "formatter": 6,
+                    "dateFormat": {
+                      "showUtcTime": false,
+                      "formatName": "shortDateTimePattern"
+                    }
+                  }
+                ],
+                "sortBy": [
+                  {
+                    "itemKey": "Type",
+                    "sortOrder": 1
+                  }
+                ],
+                "labelSettings": [
+                  {
+                    "columnId": "FeedId",
+                    "label": "Feed ID"
+                  },
+                  {
+                    "columnId": "Type",
+                    "label": "Feed Type"
+                  },
+                  {
+                    "columnId": "Name",
+                    "label": "Feed Name"
+                  },
+                  {
+                    "columnId": "URL",
+                    "label": "Feed URL"
+                  },
+                  {
+                    "columnId": "Active",
+                    "label": "Is Active"
+                  },
+                  {
+                    "columnId": "Status",
+                    "label": "Status"
+                  },
+                  {
+                    "columnId": "LastUpdate",
+                    "label": "Last Update"
+                  },
+                  {
+                    "columnId": "Created",
+                    "label": "Created"
+                  }
+                ]
+              },
+              "sortBy": [
+                {
+                  "itemKey": "Type",
+                  "sortOrder": 1
+                }
+              ]
+            },
+            "conditionalVisibility": {
+              "parameterName": "FeedManagementView",
+              "comparison": "isEqualTo",
+              "value": "FeedList"
+            },
+            "name": "FeedList"
+          },
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "parameters": [
+                {
+                  "id": "03f01c98-384f-4b1a-8c6e-1e2cb4d99b57",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "FeedOperations",
+                  "label": "Feed Operations",
+                  "type": 2,
+                  "isRequired": true,
+                  "multiSelect": false,
+                  "quote": "'",
+                  "delimiter": ",",
+                  "value": "edit",
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  },
+                  "jsonData": "[\n    { \"value\": \"edit\", \"label\": \"Edit Selected Feed\" },\n    { \"value\": \"toggle\", \"label\": \"Toggle Active Status\" },\n    { \"value\": \"delete\", \"label\": \"Delete Feed\" }\n]"
+                },
+                {
+                  "id": "9d36cb54-1ffb-410d-90a9-b9dfb9a65a54",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "FeedOperationButton",
+                  "type": 1,
+                  "value": "Apply",
+                  "typeSettings": {
+                    "parameterMode": "button"
+                  }
+                }
+              ],
+              "style": "formVertical",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces"
+            },
+            "conditionalVisibility": {
+              "parameterName": "SelectedFeedId",
+              "comparison": "isNotEqualTo",
+              "value": null
+            },
+            "name": "FeedOperations"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "## Selected Feed: {SelectedFeedName}\n\nFeed Type: **{SelectedFeedType}**\n\nOperation: **{FeedOperations}**\n\n> Note: In a production environment, feed operations would be implemented using _Data_Execute or similar functions."
+            },
+            "conditionalVisibility": {
+              "parameterName": "FeedOperationButton",
+              "comparison": "isNotEqualTo",
+              "value": null
+            },
+            "name": "FeedOperationOutput"
+          },
+          {
+            "type": 12,
+            "content": {
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "title": "Add New Feed",
+              "items": [
+                {
+                  "type": 9,
+                  "content": {
+                    "version": "KqlParameterItem/1.0",
+                    "parameters": [
+                      {
+                        "id": "de0d3b4b-bb83-4a36-bc89-e27c1ffbd5db",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "NewFeedType",
+                        "label": "Feed Type",
+                        "type": 2,
+                        "isRequired": true,
+                        "multiSelect": false,
+                        "quote": "'",
+                        "delimiter": ",",
+                        "typeSettings": {
+                          "additionalResourceOptions": [],
+                          "showDefault": false
+                        },
+                        "jsonData": "[\n    { \"value\": \"TAXII\", \"label\": \"TAXII 2.x\" },\n    { \"value\": \"CSV\", \"label\": \"CSV Feed\" },\n    { \"value\": \"JSON\", \"label\": \"JSON Feed\" },\n    { \"value\": \"MDTI\", \"label\": \"Microsoft Defender Threat Intelligence\" }\n]"
+                      },
+                      {
+                        "id": "6ab2747d-b1d1-4fc1-966c-aa0e25e8a709",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "NewFeedName",
+                        "label": "Feed Name",
+                        "type": 1,
+                        "isRequired": true
+                      },
+                      {
+                        "id": "88979da5-7d02-42d9-abb7-2ae3a37e7c9f",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "NewFeedURL",
+                        "label": "Feed URL",
+                        "type": 1,
+                        "isRequired": true
+                      },
+                      {
+                        "id": "1881f2f8-1e6c-490b-8ab8-d1ed7a239d99",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "NewFeedUsername",
+                        "label": "API Username (if required)",
+                        "type": 1,
+                        "isRequired": false
+                      },
+                      {
+                        "id": "ea50e0eb-a398-4b59-8a5b-9b98fa0cb77e",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "NewFeedPassword",
+                        "label": "API Password/Key (if required)",
+                        "type": 1,
+                        "isRequired": false
+                      },
+                      {
+                        "id": "8a81db8a-1b15-4f8e-80bc-57c2cc50aac4",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "NewFeedActive",
+                        "label": "Active",
+                        "type": 10,
+                        "isRequired": true,
+                        "value": true,
+                        "typeSettings": {
+                          "additionalResourceOptions": [],
+                          "showDefault": false
+                        }
+                      },
+                      {
+                        "id": "85a31218-5f42-48be-83ad-9a0e3de0cbb7",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "NewFeedRefreshInterval",
+                        "label": "Refresh Interval (hours)",
+                        "type": 1,
+                        "description": "How often to pull new data from the feed",
+                        "isRequired": true,
+                        "value": "24"
+                      }
+                    ],
+                    "style": "formVertical",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "customWidth": "50",
+                  "name": "NewFeedBasicInfo"
+                },
+                {
+                  "type": 9,
+                  "content": {
+                    "version": "KqlParameterItem/1.0",
+                    "parameters": [
+                      {
+                        "id": "d7c5b7e6-f27b-46b3-aa9c-bcdc0ec3d2d5",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "NewFeedDescription",
+                        "label": "Description",
+                        "type": 1,
+                        "description": "Brief description of the feed content and purpose",
+                        "isRequired": false,
+                        "multiLine": true
+                      },
+                      {
+                        "id": "9f71cb77-f068-4a0e-a1a5-5bddd8e2dd4e",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "NewFeedTLP",
+                        "label": "Default TLP",
+                        "type": 2,
+                        "description": "Default Traffic Light Protocol for indicators from this feed",
+                        "isRequired": true,
+                        "typeSettings": {
+                          "additionalResourceOptions": [],
+                          "showDefault": false
+                        },
+                        "jsonData": "[\n    { \"value\": \"TLP:RED\", \"label\": \"TLP:RED\" },\n    { \"value\": \"TLP:AMBER\", \"label\": \"TLP:AMBER\" },\n    { \"value\": \"TLP:GREEN\", \"label\": \"TLP:GREEN\" },\n    { \"value\": \"TLP:WHITE\", \"label\": \"TLP:WHITE\" }\n]",
+                        "value": "TLP:AMBER"
+                      },
+                      {
+                        "id": "4271ac27-a2ae-449c-955c-14ed0b34b0a9",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "NewFeedDistribution",
+                        "label": "Default Distribution",
+                        "type": 2,
+                        "description": "Security products to send these indicators to by default",
+                        "isRequired": true,
+                        "multiSelect": true,
+                        "quote": "'",
+                        "delimiter": ",",
+                        "typeSettings": {
+                          "additionalResourceOptions": [],
+                          "showDefault": false
+                        },
+                        "jsonData": "[\n    { \"value\": \"Microsoft Defender XDR\", \"label\": \"Microsoft Defender XDR\" },\n    { \"value\": \"Microsoft Sentinel\", \"label\": \"Microsoft Sentinel\" },\n    { \"value\": \"Exchange Online\", \"label\": \"Exchange Online\" },\n    { \"value\": \"Microsoft Security Copilot\", \"label\": \"Microsoft Security Copilot\" },\n    { \"value\": \"Entra ID\", \"label\": \"Entra ID\" }\n]",
+                        "value": ["Microsoft Defender XDR"]
+                      },
+                      {
+                        "id": "7d1c80d3-43d0-48ee-a9b6-bb12a34ded03",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "NewFeedConfiguration",
+                        "label": "Feed-Specific Configuration",
+                        "type": 1,
+                        "description": "JSON configuration data specific to the feed type",
+                        "isRequired": false,
+                        "multiLine": true,
+                        "value": "{}"
+                      }
+                    ],
+                    "style": "formVertical",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "customWidth": "50",
+                  "name": "NewFeedAdvancedInfo"
+                },
+                {
+                  "type": 9,
+                  "content": {
+                    "version": "KqlParameterItem/1.0",
+                    "parameters": [
+                      {
+                        "id": "c7a39ec3-2905-458a-95e0-c59eb8e09ffa",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "AddFeedButton",
+                        "type": 1,
+                        "value": "Add Feed",
+                        "typeSettings": {
+                          "parameterMode": "button"
+                        }
+                      }
+                    ],
+                    "style": "formVertical",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "AddFeedButton"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Generate a GUID for the new feed\r\nlet feedId = guid();\r\nlet now = now();\r\n\r\n// Extract values from parameters\r\nlet feedType = \"{NewFeedType}\";\r\nlet feedName = \"{NewFeedName}\";\r\nlet feedURL = \"{NewFeedURL}\";\r\nlet username = \"{NewFeedUsername}\";\r\nlet password = \"{NewFeedPassword}\";\r\nlet isActive = {NewFeedActive};\r\nlet refreshInterval = {NewFeedRefreshInterval};\r\nlet description = \"{NewFeedDescription}\";\r\nlet tlp = \"{NewFeedTLP}\";\r\nlet distribution = \"{NewFeedDistribution}\";\r\nlet config = \"{NewFeedConfiguration}\";\r\n\r\n// Validate input\r\nlet validationResult = case(\r\n    isempty(feedName), \"Feed name is required\",\r\n    isempty(feedURL), \"Feed URL is required\",\r\n    refreshInterval !between (1 .. 168), \"Refresh interval must be between 1 and 168 hours\",\r\n    \"Valid\"\r\n);\r\n\r\n// Show validation result\r\nprint ValidationResult = validationResult;\r\n\r\n// If valid, show what would be inserted\r\nif (validationResult == \"Valid\") {\r\n    print SuccessMessage = strcat(\"Adding new \", feedType, \" feed: \", feedName);\r\n    \r\n    // This would be the data to insert in a real implementation\r\n    print FeedData = strcat(\r\n        \"FeedId_g: \", feedId, \", \",\r\n        \"FeedType_s: \", feedType, \", \",\r\n        \"FeedName_s: \", feedName, \", \",\r\n        \"FeedURL_s: \", feedURL, \", \",\r\n        \"RefreshInterval_d: \", refreshInterval, \", \",\r\n        \"LastUpdateTime_t: \", now, \", \",\r\n        \"Description_s: \", description, \", \",\r\n        \"DefaultTLP_s: \", tlp, \", \",\r\n        \"DistributionTargets_s: \", distribution, \", \",\r\n        \"ConfigData_s: \", config, \", \",\r\n        \"Active_b: \", isActive\r\n    );\r\n    \r\n    // In a real implementation, this would be _Data_PutBlob to CTI_IntelligenceFeeds_CL\r\n    print ImplementationNote = \"In a production workbook, _Data_PutBlob would be used to insert the data into CTI_IntelligenceFeeds_CL\";\r\n}",
+                    "size": 3,
+                    "title": "Feed Creation Status",
+                    "timeContext": {
+                      "durationMs": 86400000
+                    },
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "card"
+                  },
+                  "conditionalVisibility": {
+                    "parameterName": "AddFeedButton",
+                    "comparison": "isNotEqualTo",
+                    "value": null
+                  },
+                  "name": "FeedAdditionQuery"
+                }
+              ],
+              "conditionalVisibility": {
+                "parameterName": "FeedManagementView",
+                "comparison": "isEqualTo",
+                "value": "AddFeed"
+              }
+            },
+            "name": "AddFeedGroup"
+          }
+        ],
+        "conditionalVisibility": {
+          "parameterName": "WorkbookTab",
+          "comparison": "isEqualTo",
+          "value": "FeedConfiguration"
+        }
+      },
+      "name": "FeedConfigurationTab"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "title": "Distribution Management",
+        "items": [
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "parameters": [
+                {
+                  "id": "5da5faf0-f9ed-4d9e-a553-73c54ab2b2d9",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "DistributionTarget",
+                  "label": "Target System",
+                  "type": 2,
+                  "isRequired": true,
+                  "multiSelect": false,
+                  "quote": "'",
+                  "delimiter": ",",
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  },
+                  "jsonData": "[\n    { \"value\": \"Microsoft Defender XDR\", \"label\": \"Microsoft Defender XDR\" },\n    { \"value\": \"Microsoft Sentinel\", \"label\": \"Microsoft Sentinel\" },\n    { \"value\": \"Exchange Online\", \"label\": \"Exchange Online\" },\n    { \"value\": \"Microsoft Security Copilot\", \"label\": \"Microsoft Security Copilot\" },\n    { \"value\": \"Entra ID\", \"label\": \"Entra ID\" }\n]"
+                }
+              ],
+              "style": "pills",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces"
+            },
+            "name": "DistributionTargetParameter"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "# {DistributionTarget} Configuration\n\nUse this section to configure how threat intelligence is distributed to {DistributionTarget}.\n\n## Connector Status\n\nThe connector for {DistributionTarget} is currently operational. The connector automatically syncs indicators based on the configuration below."
+            },
+            "name": "DistributionTargetHeader"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Distribution configuration for the selected target\r\nlet target = \"{DistributionTarget}\";\r\n\r\n// Count indicators distributed to the target\r\nunion \r\n(CTI_IPIndicators_CL\r\n| where Active_b == true and DistributionTargets_s has target\r\n| extend Type = \"IP\"),\r\n(CTI_DomainIndicators_CL\r\n| where Active_b == true and DistributionTargets_s has target\r\n| extend Type = \"Domain\"),\r\n(CTI_URLIndicators_CL\r\n| where Active_b == true and DistributionTargets_s has target\r\n| extend Type = \"URL\"),\r\n(CTI_FileHashIndicators_CL\r\n| where Active_b == true and DistributionTargets_s has target\r\n| extend Type = \"File Hash\")\r\n| summarize Count = count() by Type\r\n| order by Count desc",
+              "size": 3,
+              "title": "Indicators Distributed to {DistributionTarget}",
+              "timeContext": {
+                "durationMs": 0
+              },
+              "timeContextFromParameter": "TimeRange",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "tileSettings": {
+                "showBorder": true,
+                "titleContent": {
+                  "columnMatch": "Type",
+                  "formatter": 1
+                },
+                "leftContent": {
+                  "columnMatch": "Count",
+                  "formatter": 12,
+                  "formatOptions": {
+                    "palette": "auto"
+                  },
+                  "numberFormat": {
+                    "unit": 17,
+                    "options": {
+                      "maximumSignificantDigits": 3,
+                      "maximumFractionDigits": 2
+                    }
+                  }
+                }
+              }
+            },
+            "name": "DistributedIndicatorCount"
+          },
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "parameters": [
+                {
+                  "id": "bfc16239-4cde-48ef-8214-60ad2e0e3003",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "AutoApprove",
+                  "label": "Auto-Approve New Indicators",
+                  "type": 10,
+                  "description": "Automatically approve indicators for distribution without manual review",
+                  "isRequired": true,
+                  "value": true,
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  }
+                },
+                {
+                  "id": "c92191f9-26a7-4e10-a614-c3fc3c55afcb",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "MinimumConfidence",
+                  "label": "Minimum Confidence Score",
+                  "type": 2,
+                  "description": "Only distribute indicators meeting this confidence threshold",
+                  "isRequired": true,
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  },
+                  "jsonData": "[\n    { \"value\": \"0\", \"label\": \"Any (0+)\" },\n    { \"value\": \"50\", \"label\": \"Medium (50+)\" },\n    { \"value\": \"75\", \"label\": \"High (75+)\" },\n    { \"value\": \"90\", \"label\": \"Very High (90+)\" }\n]",
+                  "value": "50"
+                },
+                {
+                  "id": "4ec8f821-a3a8-40d2-8f38-78a9bfce82d2",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "AllowedTypes",
+                  "label": "Allowed Indicator Types",
+                  "type": 2,
+                  "description": "Which indicator types to distribute to this target",
+                  "isRequired": true,
+                  "multiSelect": true,
+                  "quote": "'",
+                  "delimiter": ",",
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  },
+                  "jsonData": "[\n    { \"value\": \"IP\", \"label\": \"IP Addresses\" },\n    { \"value\": \"Domain\", \"label\": \"Domain Names\" },\n    { \"value\": \"URL\", \"label\": \"URLs\" },\n    { \"value\": \"FileHash\", \"label\": \"File Hashes\" }\n]",
+                  "value": ["IP", "Domain", "URL", "FileHash"]
+                },
+                {
+                  "id": "a9e44618-e47b-4bbb-9da8-dca775e26ba3",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "SyncFrequency",
+                  "label": "Sync Frequency",
+                  "type": 2,
+                  "description": "How often to sync indicators to this target",
+                  "isRequired": true,
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  },
+                  "jsonData": "[\n    { \"value\": \"1\", \"label\": \"Every hour\" },\n    { \"value\": \"6\", \"label\": \"Every 6 hours\" },\n    { \"value\": \"12\", \"label\": \"Every 12 hours\" },\n    { \"value\": \"24\", \"label\": \"Daily\" }\n]",
+                  "value": "6"
+                },
+                {
+                  "id": "dfd4c0c7-7c01-452e-a68c-fcc8c4721ccc",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "DefaultAction",
+                  "label": "Default Action",
+                  "type": 2,
+                  "description": "Default action when indicators are matched",
+                  "isRequired": true,
+                  "typeSettings": {
+                    "additionalResourceOptions": [],
+                    "showDefault": false
+                  },
+                  "jsonData": "[\n    { \"value\": \"Block\", \"label\": \"Block\" },\n    { \"value\": \"Alert\", \"label\": \"Alert Only\" }\n]",
+                  "value": "Block"
+                }
+              ],
+              "style": "formVertical",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces"
+            },
+            "customWidth": "50",
+            "name": "DistributionConfigForm"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "## Distribution Configuration\n\nThe settings in this form control how indicators are distributed to {DistributionTarget}.\n\n### Configuration Notes\n\n- **Auto-Approve**: When enabled, new indicators are automatically approved for distribution without manual review if they meet the confidence threshold\n- **Minimum Confidence**: Only indicators with this confidence score or higher will be distributed\n- **Allowed Types**: Select the indicator types that should be distributed to this target\n- **Sync Frequency**: How often the system should check for new indicators to distribute\n- **Default Action**: The default action when indicators are matched (can be overridden per indicator)\n\n### Target-Specific Notes\n\n**{DistributionTarget}** has the following limitations and features:\n\n- Maximum indicators: **100,000**\n- API Rate Limits: **60 requests per minute**\n- Supported indicator types: {AllowedTypes}\n- Primary use cases: Blocking malicious network connections, attachments, and URLs\n\n> In a production environment, these settings would be saved to a configuration table and used by the Logic Apps to control distribution."
+            },
+            "customWidth": "50",
+            "name": "DistributionNotes"
+          },
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "parameters": [
+                {
+                  "id": "80e98cb2-2886-42b3-8a4c-932f6929013a",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "SaveDistributionConfig",
+                  "type": 1,
+                  "value": "Save Configuration",
+                  "typeSettings": {
+                    "parameterMode": "button"
+                  }
+                }
+              ],
+              "style": "formVertical",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces"
+            },
+            "name": "SaveDistributionConfigButton"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Simulate saving the distribution configuration\r\nlet target = \"{DistributionTarget}\";\r\nlet autoApprove = {AutoApprove};\r\nlet minConfidence = {MinimumConfidence};\r\nlet allowedTypes = \"{AllowedTypes}\";\r\nlet syncFrequency = {SyncFrequency};\r\nlet defaultAction = \"{DefaultAction}\";\r\nlet now = now();\r\n\r\n// Build a record of the configuration\r\nlet configData = strcat(\r\n    \"Target: \", target, \", \",\r\n    \"AutoApprove: \", autoApprove, \", \",\r\n    \"MinimumConfidence: \", minConfidence, \", \",\r\n    \"AllowedTypes: \", allowedTypes, \", \",\r\n    \"SyncFrequency: \", syncFrequency, \", \",\r\n    \"DefaultAction: \", defaultAction, \", \",\r\n    \"LastUpdated: \", now\r\n);\r\n\r\nprint Status = \"Configuration saved successfully\";\r\nprint ConfigSaved = configData;\r\nprint NextSteps = \"The distribution configuration has been updated. The changes will take effect at the next scheduled sync.\";\r\nprint Implementation = \"In a production environment, this would save the configuration to a table that the Logic Apps would reference.\";",
+              "size": 0,
+              "title": "Configuration Save Status",
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "card"
+            },
+            "conditionalVisibility": {
+              "parameterName": "SaveDistributionConfig",
+              "comparison": "isNotEqualTo",
+              "value": null
+            },
+            "name": "SaveDistributionConfigStatus"
+          }
+        ],
+        "conditionalVisibility": {
+          "parameterName": "WorkbookTab",
+          "comparison": "isEqualTo",
+          "value": "Distribution"
+        }
+      },
+      "name": "DistributionTab"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "title": "System Health",
+        "items": [
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "parameters": [
+                {
+                  "id": "26908bbf-6f7c-4da4-a736-05abf0e1d16a",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "HealthTimeRange",
+                  "label": "Time Range",
+                  "type": 4,
+                  "isRequired": true,
+                  "value": {
+                    "durationMs": 604800000
+                  },
+                  "typeSettings": {
+                    "selectableValues": [
+                      {
+                        "durationMs": 3600000
+                      },
+                      {
+                        "durationMs": 86400000
+                      },
+                      {
+                        "durationMs": 604800000
+                      },
+                      {
+                        "durationMs": 2592000000
+                      }
+                    ],
+                    "allowCustom": true
+                  }
+                }
+              ],
+              "style": "pills",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces"
+            },
+            "name": "HealthTimeRangeParameter"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// System health status\r\n// Logic App run status\r\nlet logicApps = dynamic([\"CTI-TAXII2-Connector\", \"CTI-DefenderXDR-Connector\", \"CTI-MDTI-Connector\", \"CTI-EntraID-Connector\", \"CTI-ExchangeOnline-Connector\", \"CTI-SecurityCopilot-Connector\", \"CTI-Housekeeping\", \"CTI-ThreatFeedSync\"]);\r\n\r\n// Get Logic App runs status\r\nlet workflowRuns = union \r\n    // Get recent workflow runs\r\n    (workspace(\"*\").WorkflowRuntime\r\n    | where TimeGenerated > ago(24h)\r\n    | where ResourceId contains \"Microsoft.Logic/workflows\" and Status in (\"Failed\", \"Succeeded\")\r\n    | extend ResourceName = tostring(split(ResourceId, \"/\")[8])\r\n    | extend isLogicApp = indexof(logicApps, ResourceName) != -1\r\n    | where isLogicApp\r\n    | project TimeGenerated, ResourceName, Status, startTime_t);\r\n\r\n// Process workflow status\r\nworkflowRuns\r\n| summarize LastRunStatus = arg_max(TimeGenerated, Status) by ResourceName\r\n| extend Status = iff(LastRunStatus == \"Failed\", \"Failed\", \"Healthy\")\r\n| project Component = ResourceName, Status\r\n| union (\r\n    // Add a row for workspace status - always healthy if query runs\r\n    datatable(Component:string, Status:string)[ \"Log Analytics Workspace\", \"Healthy\"]\r\n)\r\n| union (\r\n    // Add CTI tables status\r\n    union \r\n    (CTI_IPIndicators_CL | take 1 | extend TableName = \"CTI_IPIndicators_CL\"),\r\n    (CTI_DomainIndicators_CL | take 1 | extend TableName = \"CTI_DomainIndicators_CL\"),\r\n    (CTI_URLIndicators_CL | take 1 | extend TableName = \"CTI_URLIndicators_CL\"),\r\n    (CTI_FileHashIndicators_CL | take 1 | extend TableName = \"CTI_FileHashIndicators_CL\")\r\n    | summarize Count = count() by TableName\r\n    | extend Status = \"Healthy\"\r\n    | project Component = TableName, Status\r\n)\r\n| order by Component asc",
+              "size": 0,
+              "title": "System Component Health",
+              "noDataMessage": "No system status information available yet. The system may still be deploying.",
+              "timeContext": {
+                "durationMs": 0
+              },
+              "timeContextFromParameter": "HealthTimeRange",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "Status",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Healthy",
+                          "representation": "success",
+                          "text": "Healthy"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Failed",
+                          "representation": "failed",
+                          "text": "Error"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "unknown",
+                          "text": "Unknown"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "sortBy": [
+                  {
+                    "itemKey": "Component",
+                    "sortOrder": 0
+                  }
+                ]
+              },
+              "sortBy": [
+                {
+                  "itemKey": "Component",
+                  "sortOrder": 0
+                }
+              ]
+            },
+            "customWidth": "40",
+            "name": "SystemComponentHealth"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Logic App run history\r\nlet logicApps = dynamic([\"CTI-TAXII2-Connector\", \"CTI-DefenderXDR-Connector\", \"CTI-MDTI-Connector\", \"CTI-EntraID-Connector\", \"CTI-ExchangeOnline-Connector\", \"CTI-SecurityCopilot-Connector\", \"CTI-Housekeeping\", \"CTI-ThreatFeedSync\"]);\r\n\r\n// Get Logic App runs\r\nworkspace(\"*\").WorkflowRuntime\r\n| where TimeGenerated {HealthTimeRange}\r\n| where ResourceId contains \"Microsoft.Logic/workflows\"\r\n| extend ResourceName = tostring(split(ResourceId, \"/\")[8])\r\n| extend isLogicApp = indexof(logicApps, ResourceName) != -1\r\n| where isLogicApp\r\n| project TimeGenerated, Connector = ResourceName, Status, RunId = WorkflowRunId\r\n| order by TimeGenerated desc",
+              "size": 0,
+              "title": "Recent Connector Runs",
+              "noDataMessage": "No connector runs found in the selected time range.",
+              "timeContext": {
+                "durationMs": 0
+              },
+              "timeContextFromParameter": "HealthTimeRange",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "TimeGenerated",
+                    "formatter": 6,
+                    "dateFormat": {
+                      "showUtcTime": false,
+                      "formatName": "shortDateTimePattern"
+                    }
+                  },
+                  {
+                    "columnMatch": "Status",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "colors",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Succeeded",
+                          "representation": "green",
+                          "text": "Succeeded"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Failed",
+                          "representation": "redBright",
+                          "text": "Failed"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Running",
+                          "representation": "blue",
+                          "text": "Running"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "gray",
+                          "text": "{0}"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "filter": true,
+                "labelSettings": [
+                  {
+                    "columnId": "TimeGenerated",
+                    "label": "Time"
+                  },
+                  {
+                    "columnId": "Connector",
+                    "label": "Connector"
+                  },
+                  {
+                    "columnId": "Status",
+                    "label": "Status"
+                  },
+                  {
+                    "columnId": "RunId",
+                    "label": "Run ID"
+                  }
+                ]
+              }
+            },
+            "customWidth": "60",
+            "name": "ConnectorRunHistory"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// System metrics - indicator processing rate\r\n// Get indicator counts over time\r\nunion \r\n(CTI_IPIndicators_CL\r\n| summarize count() by bin(TimeGenerated, 1d)\r\n| extend Type = \"IP\"),\r\n(CTI_DomainIndicators_CL\r\n| summarize count() by bin(TimeGenerated, 1d)\r\n| extend Type = \"Domain\"),\r\n(CTI_URLIndicators_CL\r\n| summarize count() by bin(TimeGenerated, 1d)\r\n| extend Type = \"URL\"),\r\n(CTI_FileHashIndicators_CL\r\n| summarize count() by bin(TimeGenerated, 1d)\r\n| extend Type = \"File Hash\")\r\n| order by TimeGenerated asc",
+              "size": 0,
+              "title": "Indicator Growth Rate",
+              "timeContext": {
+                "durationMs": 0
+              },
+              "timeContextFromParameter": "HealthTimeRange",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "areachart",
+              "chartSettings": {
+                "seriesLabelSettings": [
+                  {
+                    "seriesName": "IP",
+                    "color": "blue"
+                  },
+                  {
+                    "seriesName": "Domain",
+                    "color": "orange"
+                  },
+                  {
+                    "seriesName": "URL",
+                    "color": "green"
+                  },
+                  {
+                    "seriesName": "File Hash",
+                    "color": "purple"
+                  }
+                ]
+              }
+            },
+            "customWidth": "50",
+            "name": "IndicatorGrowthRate"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// System metrics - distribution target health\r\n// Distribution targets\r\nlet targets = dynamic([\"Microsoft Defender XDR\", \"Microsoft Sentinel\", \"Exchange Online\", \"Microsoft Security Copilot\", \"Entra ID\"]);\r\n\r\n// Simulate distribution status (in a real implementation, this would come from Logic App run logs)\r\nlet distributionStatus = datatable(Target:string, LastSync:datetime, Status:string, ItemCount:int, ErrorCount:int)\r\n[\r\n    \"Microsoft Defender XDR\", now() - 1h, \"Healthy\", 12500, 0,\r\n    \"Microsoft Sentinel\", now() - 2h, \"Healthy\", 15000, 0,\r\n    \"Exchange Online\", now() - 6h, \"Healthy\", 8750, 0,\r\n    \"Microsoft Security Copilot\", now() - 3h, \"Healthy\", 20000, 0,\r\n    \"Entra ID\", now() - 12h, \"Warning\", 2500, 15\r\n];\r\n\r\ndistributionStatus\r\n| project Target, LastSync, Status, ItemCount, ErrorCount",
+              "size": 0,
+              "title": "Distribution Target Status",
+              "timeContext": {
+                "durationMs": 0
+              },
+              "timeContextFromParameter": "HealthTimeRange",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "LastSync",
+                    "formatter": 6,
+                    "dateFormat": {
+                      "showUtcTime": false,
+                      "formatName": "shortDateTimePattern"
+                    }
+                  },
+                  {
+                    "columnMatch": "Status",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "colors",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Healthy",
+                          "representation": "green",
+                          "text": "Healthy"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Warning",
+                          "representation": "yellow",
+                          "text": "Warning"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Error",
+                          "representation": "redBright",
+                          "text": "Error"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "gray",
+                          "text": "{0}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "ItemCount",
+                    "formatter": 8,
+                    "numberFormat": {
+                      "unit": 17,
+                      "options": {
+                        "style": "decimal",
+                        "useGrouping": true
+                      }
+                    }
+                  },
+                  {
+                    "columnMatch": "ErrorCount",
+                    "formatter": 8,
+                    "numberFormat": {
+                      "unit": 17,
+                      "options": {
+                        "style": "decimal",
+                        "useGrouping": true
+                      }
+                    }
+                  }
+                ],
+                "labelSettings": [
+                  {
+                    "columnId": "Target",
+                    "label": "Distribution Target"
+                  },
+                  {
+                    "columnId": "LastSync",
+                    "label": "Last Sync"
+                  },
+                  {
+                    "columnId": "Status",
+                    "label": "Status"
+                  },
+                  {
+                    "columnId": "ItemCount",
+                    "label": "Indicators"
+                  },
+                  {
+                    "columnId": "ErrorCount",
+                    "label": "Errors"
+                  }
+                ]
+              }
+            },
+            "customWidth": "50",
+            "name": "DistributionTargetStatus"
+          },
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "parameters": [
+                {
+                  "id": "fda75d03-45c3-428d-a9d7-ce8b5fb436c2",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "RunDiagnostics",
+                  "type": 1,
+                  "value": "Run System Diagnostics",
+                  "typeSettings": {
+                    "parameterMode": "button"
+                  }
+                }
+              ],
+              "style": "formVertical",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces"
+            },
+            "name": "RunDiagnosticsButton"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// System diagnostics\r\nprint DiagnosticResult = \"Running system diagnostics...\";\r\n\r\n// Table counts\r\nlet ipCount = toscalar(CTI_IPIndicators_CL | summarize count());\r\nlet domainCount = toscalar(CTI_DomainIndicators_CL | summarize count());\r\nlet urlCount = toscalar(CTI_URLIndicators_CL | summarize count());\r\nlet fileHashCount = toscalar(CTI_FileHashIndicators_CL | summarize count());\r\nlet totalCount = ipCount + domainCount + urlCount + fileHashCount;\r\n\r\n// Active indicator counts\r\nlet activeIPCount = toscalar(CTI_IPIndicators_CL | where Active_b == true | summarize count());\r\nlet activeDomainCount = toscalar(CTI_DomainIndicators_CL | where Active_b == true | summarize count());\r\nlet activeURLCount = toscalar(CTI_URLIndicators_CL | where Active_b == true | summarize count());\r\nlet activeFileHashCount = toscalar(CTI_FileHashIndicators_CL | where Active_b == true | summarize count());\r\nlet totalActiveCount = activeIPCount + activeDomainCount + activeURLCount + activeFileHashCount;\r\n\r\n// System health assessment\r\nlet healthStatus = \"Healthy\";\r\nlet healthIssues = dynamic([]);\r\n\r\n// Print diagnostics results\r\nprint TotalIndicators = strcat(\"Total Indicators: \", totalCount, \" (Active: \", totalActiveCount, \")\");\r\nprint TableCounts = strcat(\r\n    \"IP Addresses: \", ipCount, \" (Active: \", activeIPCount, \")\", \r\n    \", Domains: \", domainCount, \" (Active: \", activeDomainCount, \")\",\r\n    \", URLs: \", urlCount, \" (Active: \", activeURLCount, \")\",\r\n    \", File Hashes: \", fileHashCount, \" (Active: \", activeFileHashCount, \")\"  \r\n);\r\n\r\nprint SystemHealth = strcat(\"Overall System Health: \", healthStatus);\r\nprint Recommendations = \"Regular maintenance is recommended to ensure optimal performance. Consider removing expired indicators more than 90 days old.\";\r\n",
+              "size": 3,
+              "title": "System Diagnostics",
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces"
+            },
+            "conditionalVisibility": {
+              "parameterName": "RunDiagnostics",
+              "comparison": "isNotEqualTo",
+              "value": null
+            },
+            "name": "SystemDiagnosticsResult"
+          }
+        ],
+        "conditionalVisibility": {
+          "parameterName": "WorkbookTab",
+          "comparison": "isEqualTo",
+          "value": "SystemHealth"
+        }
+      },
+      "name": "SystemHealthTab"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Implementation Instructions\n\n### Required Permissions\n\nUsers need to have appropriate permissions to use this workbook:\n\n- `Microsoft Sentinel Contributor` role on the Log Analytics workspace\n- Or create a custom role with appropriate permissions for management tasks\n\n### Production Implementation\n\nIn a production environment, you'll need to:\n\n1. **Update Data Submission Logic**: Replace the query visualizations with appropriate `_Data_PutBlob` and `_Data_Execute` calls\n2. **Configure Logic Apps**: Ensure the Logic Apps are properly configured to use the tables and configuration settings\n3. **Set up Feed Management**: Create a `CTI_IntelligenceFeeds_CL` table to store feed definitions\n4. **Create Distribution Configuration Storage**: Implement storage for distribution settings\n\n### Integration Points\n\nThis workbook is designed to interact with:\n\n- **Logic Apps**: For automation of feed polling and indicator distribution\n- **CTI Tables**: For storing indicators, feed definitions, and configuration\n- **Microsoft Defender/Sentinel APIs**: For indicator distribution and synchronization"
+      },
+      "name": "ImplementationInstructions"
+    }
+  ],
+  "fallbackResourceIds": [
+    "Azure Monitor"
+  ],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}

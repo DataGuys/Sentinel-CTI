@@ -1,0 +1,122 @@
+{
+  "properties": {
+    "schema": {
+      "name": "SuricataAlert_CL",
+      "columns": [
+        {
+          "name": "TimeGenerated",
+          "type": "datetime",
+          "description": "Time when the event was generated or received by Log Analytics"
+        },
+        {
+          "name": "Timestamp",
+          "type": "datetime",
+          "description": "Original timestamp of the alert from Suricata"
+        },
+        {
+          "name": "EventType",
+          "type": "string",
+          "description": "Type of event (alert)"
+        },
+        {
+          "name": "SrcIp",
+          "type": "string",
+          "description": "Source IP address"
+        },
+        {
+          "name": "SrcPort",
+          "type": "int",
+          "description": "Source port"
+        },
+        {
+          "name": "DestIp", 
+          "type": "string",
+          "description": "Destination IP address"
+        },
+        {
+          "name": "DestPort",
+          "type": "int",
+          "description": "Destination port"
+        },
+        {
+          "name": "Proto",
+          "type": "string",
+          "description": "Protocol (TCP, UDP, ICMP, etc.)"
+        },
+        {
+          "name": "FlowId",
+          "type": "long",
+          "description": "Unique ID for the flow"
+        },
+        {
+          "name": "AppProto",
+          "type": "string",
+          "description": "Application protocol"
+        },
+        {
+          "name": "AlertAction",
+          "type": "string",
+          "description": "Action taken (allowed, blocked, etc.)"
+        },
+        {
+          "name": "AlertGid",
+          "type": "int",
+          "description": "Generator ID"
+        },
+        {
+          "name": "AlertSignatureId",
+          "type": "int",
+          "description": "Signature ID of the rule"
+        },
+        {
+          "name": "AlertRev",
+          "type": "int",
+          "description": "Revision number of the signature"
+        },
+        {
+          "name": "AlertSignature",
+          "type": "string",
+          "description": "Human-readable description of the alert (msg field in rule)"
+        },
+        {
+          "name": "AlertCategory",
+          "type": "string",
+          "description": "Category of the alert (classtype in rule)"
+        },
+        {
+          "name": "AlertSeverity",
+          "type": "int",
+          "description": "Severity level of the alert (1-4, with 1 being highest)"
+        },
+        {
+          "name": "PcapCnt",
+          "type": "int",
+          "description": "Packet number in the PCAP"
+        },
+        {
+          "name": "PacketPayload", 
+          "type": "string",
+          "description": "Base64 encoded payload of the packet"
+        },
+        {
+          "name": "PacketInfo",
+          "type": "string",
+          "description": "JSON string containing additional packet information"
+        },
+        {
+          "name": "MetadataFlowbits",
+          "type": "string",
+          "description": "JSON string containing flowbits information"
+        },
+        {
+          "name": "RawData",
+          "type": "string",
+          "description": "The original JSON event data"
+        }
+      ]
+    },
+    "retentionInDays": 30,
+    "totalRetentionInDays": 90,
+    "plan": "Analytics"
+  }
+}

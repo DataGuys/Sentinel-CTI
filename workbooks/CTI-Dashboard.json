@@ -1,0 +1,437 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# Central Threat Intelligence Dashboard\n\nThis dashboard provides a comprehensive overview of your threat intelligence ecosystem, enabling security teams to monitor active indicators, distribution status, and emerging threats.\n\n> **Note:** This dashboard is part of a three-workbook CTI solution that also includes the [CTI Indicator Management](https://portal.azure.com/#blade/Microsoft_Azure_Monitoring/AzureMonitoringBrowseBlade/workbooks) and [CTI Integration](https://portal.azure.com/#blade/Microsoft_Azure_Monitoring/AzureMonitoringBrowseBlade/workbooks) workbooks."
+      },
+      "name": "header"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "7af26c4a-a690-4922-87e3-42c58d7c5629",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "label": "Time Range",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 2592000000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 86400000
+                },
+                {
+                  "durationMs": 604800000
+                },
+                {
+                  "durationMs": 2592000000
+                },
+                {
+                  "durationMs": 7776000000
+                }
+              ],
+              "allowCustom": true
+            }
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "parameters"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Count of all active indicators by type\r\nunion \r\n(CTI_IPIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"IP\", Value = IPAddress_s),\r\n(CTI_DomainIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"Domain\", Value = Domain_s),\r\n(CTI_URLIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"URL\", Value = URL_s),\r\n(CTI_FileHashIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"File Hash\", Value = coalesce(SHA256_s, SHA1_s, MD5_s))\r\n| summarize Count = count() by Type\r\n| order by Count desc",
+        "size": 3,
+        "title": "Active Indicators by Type",
+        "timeContext": {
+          "durationMs": 0
+        },
+        "timeContextFromParameter": "TimeRange",
+        "exportFieldName": "Type",
+        "exportParameterName": "SelectedType",
+        "exportDefaultValue": "All",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "showBorder": true,
+          "titleContent": {
+            "columnMatch": "Type",
+            "formatter": 1
+          },
+          "leftContent": {
+            "columnMatch": "Count",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "auto"
+            },
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "maximumSignificantDigits": 3,
+                "maximumFractionDigits": 2
+              }
+            }
+          }
+        }
+      },
+      "customWidth": "50",
+      "name": "IndicatorsByTypeCount"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Indicators added over time - trend analysis\r\nunion \r\n(CTI_IPIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"IP\", FirstSeen = FirstSeen_t),\r\n(CTI_DomainIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"Domain\", FirstSeen = FirstSeen_t),\r\n(CTI_URLIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"URL\", FirstSeen = FirstSeen_t),\r\n(CTI_FileHashIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"File Hash\", FirstSeen = FirstSeen_t)\r\n| summarize Count = count() by Type, bin(FirstSeen, 1d)\r\n| order by FirstSeen asc",
+        "size": 0,
+        "title": "Indicator Growth Trend",
+        "timeContext": {
+          "durationMs": 0
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "areachart",
+        "chartSettings": {
+          "seriesLabelSettings": [
+            {
+              "seriesName": "IP",
+              "color": "blue"
+            },
+            {
+              "seriesName": "Domain",
+              "color": "orange"
+            },
+            {
+              "seriesName": "URL",
+              "color": "green"
+            },
+            {
+              "seriesName": "File Hash",
+              "color": "purple"
+            }
+          ]
+        }
+      },
+      "customWidth": "50",
+      "name": "IndicatorGrowthTrend"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Distribution of indicators by target product\r\nunion \r\n(CTI_IPIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"IP\", Value = IPAddress_s, Distribution = split(DistributionTargets_s, \", \")),\r\n(CTI_DomainIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"Domain\", Value = Domain_s, Distribution = split(DistributionTargets_s, \", \")),\r\n(CTI_URLIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"URL\", Value = URL_s, Distribution = split(DistributionTargets_s, \", \")),\r\n(CTI_FileHashIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"File Hash\", Value = coalesce(SHA256_s, SHA1_s, MD5_s), Distribution = split(DistributionTargets_s, \", \"))\r\n| mv-expand Target = Distribution\r\n| summarize Count = count() by tostring(Target), Type\r\n| where isnotempty(Target)\r\n| order by Count desc",
+        "size": 0,
+        "title": "Distribution by Target Product",
+        "timeContext": {
+          "durationMs": 0
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "barchart",
+        "chartSettings": {
+          "xAxis": "Target",
+          "yAxis": ["Count"],
+          "seriesLabelSettings": [
+            {
+              "seriesName": "IP",
+              "color": "blue"
+            },
+            {
+              "seriesName": "Domain",
+              "color": "orange"
+            },
+            {
+              "seriesName": "URL",
+              "color": "green"
+            },
+            {
+              "seriesName": "File Hash",
+              "color": "purple"
+            }
+          ]
+        }
+      },
+      "customWidth": "60",
+      "name": "IndicatorsByDistribution"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Indicators by source feed\r\nunion \r\n(CTI_IPIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"IP\", Source = SourceFeed_s),\r\n(CTI_DomainIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"Domain\", Source = SourceFeed_s),\r\n(CTI_URLIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"URL\", Source = SourceFeed_s),\r\n(CTI_FileHashIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"File Hash\", Source = SourceFeed_s)\r\n| summarize Count = count() by Source\r\n| where isnotempty(Source)\r\n| order by Count desc\r\n| take 10",
+        "size": 0,
+        "title": "Top 10 Source Feeds",
+        "timeContext": {
+          "durationMs": 0
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "piechart"
+      },
+      "customWidth": "40",
+      "name": "IndicatorsBySource"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Critical Indicator Status"
+      },
+      "name": "section-divider"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Expiring indicators for the next 7 days\r\nunion \r\n(CTI_IPIndicators_CL\r\n| where Active_b == true and ExpirationDateTime_t between (now() .. now()+7d)\r\n| extend Type = \"IP\", Value = IPAddress_s, ExpirationDate = ExpirationDateTime_t),\r\n(CTI_DomainIndicators_CL\r\n| where Active_b == true and ExpirationDateTime_t between (now() .. now()+7d)\r\n| extend Type = \"Domain\", Value = Domain_s, ExpirationDate = ExpirationDateTime_t),\r\n(CTI_URLIndicators_CL\r\n| where Active_b == true and ExpirationDateTime_t between (now() .. now()+7d)\r\n| extend Type = \"URL\", Value = URL_s, ExpirationDate = ExpirationDateTime_t),\r\n(CTI_FileHashIndicators_CL\r\n| where Active_b == true and ExpirationDateTime_t between (now() .. now()+7d)\r\n| extend Type = \"File Hash\", Value = coalesce(SHA256_s, SHA1_s, MD5_s), ExpirationDate = ExpirationDateTime_t)\r\n| project Type, Value, ExpirationDate, ThreatType = coalesce(ThreatType_s, \"\"), Confidence = coalesce(Confidence_d, ConfidenceScore_d, 0), Source = coalesce(Source_s, SourceFeed_s, \"\")\r\n| order by ExpirationDate asc",
+        "size": 0,
+        "title": "Indicators Expiring Soon (Next 7 Days)",
+        "timeContext": {
+          "durationMs": 0
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "ExpirationDate",
+              "formatter": 6,
+              "dateFormat": {
+                "showUtcTime": false,
+                "formatName": "shortDateTimePattern"
+              }
+            },
+            {
+              "columnMatch": "Confidence",
+              "formatter": 8,
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "decimal",
+                  "useGrouping": true,
+                  "minimumFractionDigits": 0,
+                  "maximumFractionDigits": 0
+                }
+              },
+              "visualizations": {
+                "greenRedGradient": {
+                  "min": 0,
+                  "max": 100
+                }
+              }
+            }
+          ]
+        }
+      },
+      "customWidth": "60",
+      "name": "ExpiringIndicators"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// High confidence indicators added in the last 7 days\r\nunion \r\n(CTI_IPIndicators_CL\r\n| where Active_b == true and coalesce(FirstSeen_t, TimeGenerated) > ago(7d) and coalesce(ConfidenceScore_d, 0) >= 80\r\n| extend Type = \"IP\", Value = IPAddress_s, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n(CTI_DomainIndicators_CL\r\n| where Active_b == true and coalesce(FirstSeen_t, TimeGenerated) > ago(7d) and coalesce(ConfidenceScore_d, 0) >= 80\r\n| extend Type = \"Domain\", Value = Domain_s, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n(CTI_URLIndicators_CL\r\n| where Active_b == true and coalesce(FirstSeen_t, TimeGenerated) > ago(7d) and coalesce(ConfidenceScore_d, 0) >= 80\r\n| extend Type = \"URL\", Value = URL_s, Added = coalesce(FirstSeen_t, TimeGenerated)),\r\n(CTI_FileHashIndicators_CL\r\n| where Active_b == true and coalesce(FirstSeen_t, TimeGenerated) > ago(7d) and coalesce(ConfidenceScore_d, 0) >= 80\r\n| extend Type = \"File Hash\", Value = coalesce(SHA256_s, SHA1_s, MD5_s), Added = coalesce(FirstSeen_t, TimeGenerated))\r\n| project Type, Value, Added, ThreatType = coalesce(ThreatType_s, \"\"), Confidence = coalesce(ConfidenceScore_d, 0), Source = coalesce(SourceFeed_s, \"\")\r\n| order by Added desc",
+        "size": 0,
+        "title": "New High Confidence Indicators (Last 7 Days)",
+        "timeContext": {
+          "durationMs": 0
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Added",
+              "formatter": 6,
+              "dateFormat": {
+                "showUtcTime": false,
+                "formatName": "shortDateTimePattern"
+              }
+            },
+            {
+              "columnMatch": "Confidence",
+              "formatter": 8,
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "decimal",
+                  "useGrouping": true,
+                  "minimumFractionDigits": 0,
+                  "maximumFractionDigits": 0
+                }
+              },
+              "visualizations": {
+                "greenRedGradient": {
+                  "min": 0,
+                  "max": 100
+                }
+              }
+            }
+          ]
+        }
+      },
+      "customWidth": "40",
+      "name": "NewHighConfidenceIndicators"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Threat Intelligence Analytics"
+      },
+      "name": "section-divider-2"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Threat type distribution\r\nunion \r\n(CTI_IPIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"IP\", ThreatType = ThreatType_s),\r\n(CTI_DomainIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"Domain\", ThreatType = ThreatType_s),\r\n(CTI_URLIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"URL\", ThreatType = ThreatType_s),\r\n(CTI_FileHashIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"File Hash\", ThreatType = ThreatType_s)\r\n| where isnotempty(ThreatType)\r\n| summarize Count = count() by ThreatType, Type\r\n| order by Count desc\r\n| top 20 by Count desc",
+        "size": 0,
+        "title": "Threat Type Distribution",
+        "timeContext": {
+          "durationMs": 0
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "barchart",
+        "chartSettings": {
+          "xAxis": "ThreatType",
+          "yAxis": ["Count"],
+          "seriesLabelSettings": [
+            {
+              "seriesName": "IP",
+              "color": "blue"
+            },
+            {
+              "seriesName": "Domain",
+              "color": "orange"
+            },
+            {
+              "seriesName": "URL",
+              "color": "green"
+            },
+            {
+              "seriesName": "File Hash",
+              "color": "purple"
+            }
+          ]
+        }
+      },
+      "customWidth": "50",
+      "name": "ThreatTypeDistribution"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// TLP classification of indicators\r\nunion \r\n(CTI_IPIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"IP\", TLP = TLP_s),\r\n(CTI_DomainIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"Domain\", TLP = TLP_s),\r\n(CTI_URLIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"URL\", TLP = TLP_s),\r\n(CTI_FileHashIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"File Hash\", TLP = TLP_s)\r\n| where isnotempty(TLP)\r\n| summarize Count = count() by TLP, Type\r\n| order by Count desc",
+        "size": 0,
+        "title": "TLP Classification",
+        "timeContext": {
+          "durationMs": 0
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "piechart",
+        "chartSettings": {
+          "seriesLabelSettings": [
+            {
+              "seriesName": "TLP:RED",
+              "color": "redBright"
+            },
+            {
+              "seriesName": "TLP:AMBER",
+              "color": "orange"
+            },
+            {
+              "seriesName": "TLP:GREEN",
+              "color": "green"
+            },
+            {
+              "seriesName": "TLP:WHITE",
+              "color": "gray"
+            }
+          ]
+        }
+      },
+      "customWidth": "50",
+      "name": "TLPClassification"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// System health status\r\n// Logic App run status\r\nlet logicApps = dynamic([\"CTI-TAXII2-Connector\", \"CTI-DefenderXDR-Connector\", \"CTI-MDTI-Connector\", \"CTI-EntraID-Connector\", \"CTI-ExchangeOnline-Connector\", \"CTI-SecurityCopilot-Connector\", \"CTI-Housekeeping\", \"CTI-ThreatFeedSync\"]);\r\n\r\n// Get Logic App runs status\r\nlet workflowRuns = union \r\n    // Get recent workflow runs\r\n    (workspace(\"*\").WorkflowRuntime\r\n    | where TimeGenerated > ago(24h)\r\n    | where ResourceId contains \"Microsoft.Logic/workflows\" and Status in (\"Failed\", \"Succeeded\")\r\n    | extend ResourceName = tostring(split(ResourceId, \"/\")[8])\r\n    | extend isLogicApp = indexof(logicApps, ResourceName) != -1\r\n    | where isLogicApp\r\n    | project TimeGenerated, ResourceName, Status, startTime_t);\r\n\r\n// Process workflow status\r\nworkflowRuns\r\n| summarize LastRunStatus = arg_max(TimeGenerated, Status) by ResourceName\r\n| extend Status = iff(LastRunStatus == \"Failed\", \"Failed\", \"Healthy\")\r\n| project Component = ResourceName, Status\r\n| union (\r\n    // Add a row for workspace status - always healthy if query runs\r\n    datatable(Component:string, Status:string)[ \"Log Analytics Workspace\", \"Healthy\"]\r\n)\r\n| union (\r\n    // Add CTI tables status\r\n    union \r\n    (CTI_IPIndicators_CL | take 1 | extend TableName = \"CTI_IPIndicators_CL\"),\r\n    (CTI_DomainIndicators_CL | take 1 | extend TableName = \"CTI_DomainIndicators_CL\"),\r\n    (CTI_URLIndicators_CL | take 1 | extend TableName = \"CTI_URLIndicators_CL\"),\r\n    (CTI_FileHashIndicators_CL | take 1 | extend TableName = \"CTI_FileHashIndicators_CL\")\r\n    | summarize Count = count() by TableName\r\n    | extend Status = \"Healthy\"\r\n    | project Component = TableName, Status\r\n)\r\n| order by Component asc",
+        "size": 0,
+        "title": "System Status",
+        "noDataMessage": "No system status information available yet. The system may still be deploying.",
+        "timeContext": {
+          "durationMs": 86400000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Status",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Healthy",
+                    "representation": "success",
+                    "text": "Healthy"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Failed",
+                    "representation": "failed",
+                    "text": "Error"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "unknown",
+                    "text": "Unknown"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "name": "SystemStatus"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Related Resources\n\n- [CTI Indicator Management Workbook](https://portal.azure.com/#blade/Microsoft_Azure_Monitoring/AzureMonitoringBrowseBlade/workbooks/name/cti-indicator-management) - Submit, manage, and update threat indicators\n- [CTI Integration Workbook](https://portal.azure.com/#blade/Microsoft_Azure_Monitoring/AzureMonitoringBrowseBlade/workbooks/name/cti-integration) - Configure feeds and distribution targets\n- [Microsoft Defender XDR Portal](https://security.microsoft.com) - View applied indicators in Microsoft Defender"
+      },
+      "name": "related-resources"
+    }
+  ],
+  "styleSettings": {
+    "paddingStyle": "wide",
+    "spacingStyle": "wide"
+  },
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
