@@ -1,6 +1,6 @@
 #!/bin/bash
-# Central Threat Intelligence V2 - Full Deployment Script (Fixed)
-# This script creates the app registration and deploys the entire solution
+# Central Threat Intelligence V3 - Full Deployment Script
+# This script creates the app registration, deploys the core solution, and adds Sentinel integration
 
 set -e
 
@@ -12,12 +12,12 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 REPO_BRANCH="${REPO_BRANCH:-main}"
-RAW_BASE="https://raw.githubusercontent.com/DataGuys/CentralThreatIntelligenceV2/${REPO_BRANCH}"
+RAW_BASE="https://raw.githubusercontent.com/DataGuys/CentralThreatIntelligenceV3/${REPO_BRANCH}"
 DEPLOY_NAME="cti-$(date +%Y%m%d%H%M%S)"
 TEMP_DIR=$(mktemp -d)
 
 echo -e "\n${BLUE}============================================================${NC}"
-echo -e "${BLUE}    Central Threat Intelligence V2 - Full Deployment${NC}"
+echo -e "${BLUE}    Central Threat Intelligence V3 - Full Deployment${NC}"
 echo -e "${BLUE}============================================================${NC}"
 
 cleanup() {
@@ -52,23 +52,26 @@ LOCATION=""
 PREFIX="cti"
 ENVIRONMENT="prod"
 TABLE_PLAN="Analytics"
+ENABLE_SENTINEL=true
 
 usage() {
-    echo -e "Usage: $0 [-l location] [-p prefix] [-e environment] [-t table_plan]"
+    echo -e "Usage: $0 [-l location] [-p prefix] [-e environment] [-t table_plan] [-s enable_sentinel]"
     echo -e "  -l  Azure region                    (default: first 'Recommended' region or westus2)"
     echo -e "  -p  Resource name prefix            (default: cti)"
     echo -e "  -e  Environment tag                 (default: prod)"
     echo -e "  -t  Table plan: Analytics|Basic|Aux (default: Analytics)"
+    echo -e "  -s  Enable Sentinel integration     (default: true)"
     echo -e "  -h  Help"
     exit 1
 }
 
-while getopts "l:p:e:t:h" opt; do
+while getopts "l:p:e:t:s:h" opt; do
     case "$opt" in
         l) LOCATION="$OPTARG" ;;
         p) PREFIX="$OPTARG" ;;
         e) ENVIRONMENT="$OPTARG" ;;
         t) TABLE_PLAN="$OPTARG" ;;
+        s) ENABLE_SENTINEL="$OPTARG" ;;
         h|*) usage ;;
     esac
 done
@@ -97,6 +100,7 @@ echo -e " Environment  : ${ENVIRONMENT}"
 echo -e " Table plan   : ${TABLE_PLAN}"
 echo -e " Resource Group: ${RG_NAME}"
 echo -e " Deployment   : ${DEPLOY_NAME}"
+echo -e " Sentinel     : ${ENABLE_SENTINEL}"
 echo -e "${BLUE}============================================================${NC}"
 
 # Step 1: Create the app registration
@@ -128,7 +132,7 @@ curl -sL "${RAW_BASE}/modules/resources.bicep" -o "${TEMP_DIR}/modules/resources
 # Tables
 curl -sL "${RAW_BASE}/tables/custom-tables.json" -o "${TEMP_DIR}/tables/custom-tables.json"
 
-# Create custom modules for phased deployment
+# Create custom modules for phased deployment - V3 Modified Version
 cat > "${TEMP_DIR}/modules/custom-tables.bicep" << 'EOT'
 @description('Name of the Log Analytics workspace')
 param workspaceName string
@@ -152,7 +156,7 @@ var ctiTables = [
       { name: 'Name_s', type: 'string' }
       { name: 'Description_s', type: 'string' }
       { name: 'Action_s', type: 'string' }
-      { name: 'Confidence_d', type: 'string' }
+      { name: 'Confidence_d', type: 'double' }
       { name: 'ValidFrom_t', type: 'datetime' }
       { name: 'ValidUntil_t', type: 'datetime' }
       { name: 'CreatedTimeUtc_t', type: 'datetime' }
@@ -169,6 +173,7 @@ var ctiTables = [
       { name: 'Active_b', type: 'bool' }
       { name: 'ObjectId_g', type: 'guid' }
       { name: 'IndicatorId_g', type: 'guid' }
+      { name: 'AdditionalFields', type: 'dynamic' }
     ]
   }
   {
@@ -176,7 +181,7 @@ var ctiTables = [
     columns: [
       { name: 'TimeGenerated', type: 'datetime' }
       { name: 'IPAddress_s', type: 'string' }
-      { name: 'ConfidenceScore_d', type: 'string' }
+      { name: 'ConfidenceScore_d', type: 'double' }
       { name: 'SourceFeed_s', type: 'string' }
       { name: 'FirstSeen_t', type: 'datetime' }
       { name: 'LastSeen_t', type: 'datetime' }
@@ -195,6 +200,7 @@ var ctiTables = [
       { name: 'CampaignName_s', type: 'string' }
       { name: 'Active_b', type: 'bool' }
       { name: 'IndicatorId_g', type: 'guid' }
+      { name: 'ParentIndicatorId_g', type: 'guid' }
     ]
   }
   {
@@ -202,7 +208,7 @@ var ctiTables = [
     columns: [
       { name: 'TimeGenerated', type: 'datetime' }
       { name: 'Domain_s', type: 'string' }
-      { name: 'ConfidenceScore_d', type: 'string' }
+      { name: 'ConfidenceScore_d', type: 'double' }
       { name: 'SourceFeed_s', type: 'string' }
       { name: 'FirstSeen_t', type: 'datetime' }
       { name: 'LastSeen_t', type: 'datetime' }
@@ -219,6 +225,7 @@ var ctiTables = [
       { name: 'CampaignName_s', type: 'string' }
       { name: 'Active_b', type: 'bool' }
       { name: 'IndicatorId_g', type: 'guid' }
+      { name: 'ParentIndicatorId_g', type: 'guid' }
     ]
   }
   {
@@ -226,7 +233,7 @@ var ctiTables = [
     columns: [
       { name: 'TimeGenerated', type: 'datetime' }
       { name: 'URL_s', type: 'string' }
-      { name: 'ConfidenceScore_d', type: 'string' }
+      { name: 'ConfidenceScore_d', type: 'double' }
       { name: 'SourceFeed_s', type: 'string' }
       { name: 'FirstSeen_t', type: 'datetime' }
       { name: 'LastSeen_t', type: 'datetime' }
@@ -243,6 +250,7 @@ var ctiTables = [
       { name: 'CampaignName_s', type: 'string' }
       { name: 'Active_b', type: 'bool' }
       { name: 'IndicatorId_g', type: 'guid' }
+      { name: 'ParentIndicatorId_g', type: 'guid' }
     ]
   }
   {
@@ -252,7 +260,7 @@ var ctiTables = [
       { name: 'SHA256_s', type: 'string' }
       { name: 'MD5_s', type: 'string' }
       { name: 'SHA1_s', type: 'string' }
-      { name: 'ConfidenceScore_d', type: 'string' }
+      { name: 'ConfidenceScore_d', type: 'double' }
       { name: 'SourceFeed_s', type: 'string' }
       { name: 'FirstSeen_t', type: 'datetime' }
       { name: 'LastSeen_t', type: 'datetime' }
@@ -270,6 +278,7 @@ var ctiTables = [
       { name: 'CampaignName_s', type: 'string' }
       { name: 'Active_b', type: 'bool' }
       { name: 'IndicatorId_g', type: 'guid' }
+      { name: 'ParentIndicatorId_g', type: 'guid' }
     ]
   }
   {
@@ -281,6 +290,24 @@ var ctiTables = [
       { name: 'STIXId', type: 'string' }
       { name: 'CreatedBy', type: 'string' }
       { name: 'Source', type: 'string' }
+    ]
+  }
+  {
+    name: 'CTI_IntelligenceFeeds_CL'
+    columns: [
+      { name: 'TimeGenerated', type: 'datetime' }
+      { name: 'FeedId_g', type: 'guid' }
+      { name: 'FeedType_s', type: 'string' }
+      { name: 'FeedName_s', type: 'string' }
+      { name: 'FeedURL_s', type: 'string' }
+      { name: 'RefreshInterval_d', type: 'double' }
+      { name: 'LastUpdateTime_t', type: 'datetime' }
+      { name: 'ConfigData_s', type: 'string' }
+      { name: 'ContentMapping_s', type: 'string' }
+      { name: 'Description_s', type: 'string' }
+      { name: 'DefaultTLP_s', type: 'string' }
+      { name: 'DistributionTargets_s', type: 'string' }
+      { name: 'Active_b', type: 'bool' }
     ]
   }
 ]
@@ -301,201 +328,116 @@ resource customTables 'Microsoft.OperationalInsights/workspaces/tables@2022-10-0
 output tableNames array = [for (table, i) in ctiTables: table.name]
 EOT
 
-cat > "${TEMP_DIR}/modules/stix-dcr.bicep" << 'EOT'
-param location string
+# Add Sentinel deployment module
+cat > "${TEMP_DIR}/modules/sentinel-deployment.bicep" << 'EOT'
+@description('Name of the Log Analytics workspace')
 param workspaceName string
-param dceId string
-param dcrStixName string = 'cti-dcr-stix-prod'
-param tags object = {}
 
-resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' existing = {
-  name: workspaceName
-}
-
-// STIX Data Collection Rule - created after tables exist
-resource stixCollectionRule 'Microsoft.Insights/dataCollectionRules@2022-06-01' = {
-  name: dcrStixName
-  location: location
-  properties: {
-    dataCollectionEndpointId: dceId
-    description: 'Custom log ingestion for TAXII/STIX feeds (JSON)'
-    streamDeclarations: {
-      'Custom-CTI_StixData_CL': {
-        columns: [
-          {
-            name: 'TimeGenerated'
-            type: 'datetime'
-          }
-          {
-            name: 'RawSTIX'
-            type: 'string'
-          }
-          {
-            name: 'STIXType'
-            type: 'string'
-          }
-          {
-            name: 'STIXId'
-            type: 'string'
-          }
-          {
-            name: 'CreatedBy'
-            type: 'string'
-          }
-          {
-            name: 'Source'
-            type: 'string'
-          }
-        ]
-      }
-    }
-    destinations: {
-      logAnalytics: [
-        {
-          name: 'lawDest'
-          workspaceResourceId: logAnalyticsWorkspace.id
-        }
-      ]
-    }
-    dataFlows: [
-      {
-        streams: ['Custom-CTI_StixData_CL']
-        destinations: ['lawDest']
-      }
-    ]
-  }
-  tags: tags
-}
-
-output stixDcrId string = stixCollectionRule.id
-EOT
-
-# Fix resources.bicep with unique Key Vault naming
-cat > "${TEMP_DIR}/modules/resources.bicep" << 'EOT'
-targetScope = 'resourceGroup'
-
-// Core parameters for resource naming and configuration
-param prefix string
-param environment string
+@description('Location for all resources')
 param location string = resourceGroup().location
-param tagsMap object = {
-  environment: environment
-  owner: 'security-team'
-  project: 'threat-intelligence'
-}
 
-// Resource naming variables with uniqueness for Key Vault
-var uniqueSuffix = uniqueString(resourceGroup().id)
-var workspaceName = '${prefix}-law-${environment}'
-var keyVaultName = toLower(replace('${prefix}-kv-${environment}-${take(uniqueSuffix, 6)}', '-', ''))
-var dcrSyslogName = '${prefix}-dcr-syslog-${environment}'
-var dcrStixName = '${prefix}-dcr-stix-${environment}'
-var dceName = '${prefix}-dce-${environment}'
+@description('Resource Group name')
+param resourceGroupName string
 
-// ==================== Core Resources ====================
+@description('Tags to apply to resources')
+param tagValues object
 
-// Log Analytics Workspace for threat intelligence data and logs
-resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
+// Get reference to existing workspace
+resource workspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' existing = {
   name: workspaceName
-  location: location
-  properties: {
-    retentionInDays: 30
-    sku: {
-      name: 'PerGB2018'
-    }
-  }
-  tags: tagsMap
 }
 
-// Key Vault for secure storage of secrets and credentials
-// Uses RBAC for access control instead of access policies
-resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
-  name: keyVaultName
-  location: location
+// Deploy Microsoft Sentinel
+resource sentinel 'Microsoft.SecurityInsights/onboardingStates@2022-11-01' = {
+  name: 'default'
+  scope: workspace
   properties: {
-    enableRbacAuthorization: true
-    sku: {
-      family: 'A'
-      name: 'standard'
-    }
+    customerManagedKey: null
+  }
+}
+
+// Deploy a basic Sentinel solution: Threat Intelligence
+resource threatIntelSolution 'Microsoft.SecurityInsights/contentPackages@2023-09-01-preview' = {
+  scope: workspace
+  name: 'ThreatIntelligence'
+  properties: {
+    contentId: 'ThreatIntelligence'
+    displayName: 'Microsoft Sentinel Threat Intelligence Solution'
+    version: '3.0.1'
+    contentKind: 'Solution'
+    contentProductId: 'sentinel-threatintelligence'
+    supportedResourceTypes: [
+      'Microsoft.OperationalInsights/workspaces'
+    ]
+  }
+  dependsOn: [
+    sentinel
+  ]
+}
+
+// Create Sentinel data connector for ThreatIntelligence
+resource tiDataConnector 'Microsoft.SecurityInsights/dataConnectors@2022-11-01' = {
+  name: 'ThreatIntelligenceIndicator'
+  scope: workspace
+  kind: 'ThreatIntelligence'
+  properties: {
     tenantId: subscription().tenantId
-  }
-  tags: tagsMap
-}
-
-// ==================== Data Collection Infrastructure ====================
-
-// Data Collection Endpoint for STIX/TAXII feed ingestion
-// Exposes an HTTP endpoint for Logic Apps to POST data to
-resource dataCollectionEndpoint 'Microsoft.Insights/dataCollectionEndpoints@2021-09-01-preview' = {
-  name: dceName
-  location: location
-  kind: 'AzureMonitor'
-  properties: {
-    description: 'Endpoint for TAXII/STIX push ingestion'
-    networkAcls: {
-      publicNetworkAccess: 'Enabled' // Note: Should be restricted in production
+    dataTypes: {
+      threatIntelligenceIndicator: {
+        state: 'Enabled'
+      }
     }
   }
-  tags: tagsMap
+  dependsOn: [
+    sentinel
+  ]
 }
 
-// Syslog Collection Rule for standard Linux logs
-resource syslogCollectionRule 'Microsoft.Insights/dataCollectionRules@2022-06-01' = {
-  name: dcrSyslogName
-  location: location
+// Create TI Analytics rule template to match IOCs
+resource analyticsRuleTemplate 'Microsoft.SecurityInsights/alertRuleTemplates@2022-12-01-preview' = {
+  scope: workspace
+  name: 'guid-for-ti-map-template'
+  kind: 'ThreatIntelligence'
   properties: {
-    description: 'Syslog collection for CTI'
-    dataSources: {
-      syslog: [
-        {
-          // Fixed: Added streams property
-          streams: ['Microsoft-Syslog']
-          facilityNames: [
-            'auth'
-            'authpriv'
-            'daemon'
-            'local0'
-          ]
-          logLevels: [
-            // Fixed: Using valid log level values
-            'Warning'
-            'Notice'
-            'Error'
-            'Critical'
-            'Alert'
-            'Emergency'
-          ]
-          name: 'syslogSource'
-        }
-      ]
-    }
-    destinations: {
-      logAnalytics: [
-        {
-          name: 'lawDest'
-          workspaceResourceId: logAnalyticsWorkspace.id
-        }
-      ]
-    }
-    dataFlows: [
+    alertRulesCreatedByTemplateCount: 0
+    createdDateUTC: '2023-10-01T00:00:00.000Z'
+    description: 'Create incidents when IOCs from CTI_ThreatIntelIndicator_CL match with any data source'
+    displayName: 'Custom CTI IOC Mapping Analytics Rule'
+    status: 'Available'
+    templateName: 'ThreatIntelligenceMapTemplate'
+  }
+  dependsOn: [
+    sentinel
+  ]
+}
+
+// Create analytics rule from template
+resource analyticsRule 'Microsoft.SecurityInsights/alertRules@2022-12-01-preview' = {
+  scope: workspace
+  name: 'cti-ti-mapping-rule'
+  kind: 'ThreatIntelligence'
+  properties: {
+    alertRuleTemplateName: analyticsRuleTemplate.name
+    description: 'Create incidents based on IOCs from CTI tables'
+    displayName: 'Threat Intelligence Matches to CTI_ThreatIntelIndicator_CL'
+    enabled: true
+    productFilter: 'Microsoft Sentinel'
+    severitiesFilter: ['High']
+    sourceSettings: [
       {
-        streams: ['Microsoft-Syslog']
-        destinations: ['lawDest']
+        kind: 'TiCustomTable'
+        sourceName: 'CTI_ThreatIntelIndicator_CL'
+        sourceSubTypes: ['All']
       }
     ]
   }
-  tags: tagsMap
+  dependsOn: [
+    sentinel
+    analyticsRuleTemplate
+  ]
 }
 
-// ==================== Outputs ====================
-
-output workspaceId string = logAnalyticsWorkspace.id
-output workspaceName string = workspaceName
-output keyVaultUri string = keyVault.properties.vaultUri
-output keyVaultName string = keyVaultName
-output dceEndpointId string = dataCollectionEndpoint.id
-output dceSyslogId string = syslogCollectionRule.id
+output sentinelStatus string = 'Deployed'
 EOT
 
 echo -e "${GREEN}✅ Deployment files downloaded and updated${NC}"
@@ -619,28 +561,38 @@ az role assignment create \
 # Create JSON tags object properly
 TAGS_JSON=$(jq -n --arg env "$ENVIRONMENT" '{"project":"CentralThreatIntelligence","environment":$env}')
 
-# Deploy logic apps using deployment.bicep
-echo -e "${YELLOW}Deploying logic apps using Bicep templates...${NC}"
-LOGIC_APPS_DEPLOY=$(az deployment group create \
-  --resource-group "$RG_NAME" \
-  --name "${DEPLOY_NAME}-logic-apps" \
-  --template-file "${TEMP_DIR}/logic-apps/deployment.bicep" \
-  --parameters \
-    location="$LOCATION" \
-    managedIdentityId="$IDENTITY_ID" \
-    logAnalyticsConnectionId="$LOGANALYTICS_CONNECTION_ID" \
-    logAnalyticsQueryConnectionId="$MONITORLOGS_CONNECTION_ID" \
-    microsoftGraphConnectionId="$GRAPH_CONNECTION_ID" \
-    ctiWorkspaceName="$WORKSPACE_NAME" \
-    ctiWorkspaceId="$WORKSPACE_ID" \
-    keyVaultName="$KEYVAULT_NAME" \
-    clientSecretName="$CLIENT_SECRET_NAME" \
-    appClientId="$CLIENT_ID" \
-    tenantId="$TENANT_ID" \
-    securityApiBaseUrl="https://api.securitycenter.microsoft.com" \
-    enableMDTI=true \
-    enableSecurityCopilot=true \
-    dceNameForCopilot="${PREFIX}-dce-copilot-${ENVIRONMENT}" \
-    diagnosticSettingsRetentionDays=30 \
-    tags="$TAGS_JSON" \
-    --query "properties.outputs" -o json)
+# Deploy modified v3 logic apps
+echo -e "${YELLOW}Deploying V3 logic apps...${NC}"
+
+# Step 7: Deploy Sentinel (Optional)
+if [[ "$ENABLE_SENTINEL" == "true" ]]; then
+    echo -e "\n${BLUE}Step 7: Deploying Microsoft Sentinel...${NC}"
+    
+    # Create the parameter object for the deployment
+    SENTINEL_PARAMS=$(jq -n \
+        --arg workspaceName "$WORKSPACE_NAME" \
+        --arg location "$LOCATION" \
+        --arg resourceGroupName "$RG_NAME" \
+        --argjson tags "$TAGS_JSON" \
+        '{
+            workspaceName: {value: $workspaceName},
+            location: {value: $location},
+            resourceGroupName: {value: $resourceGroupName},
+            tagValues: {value: $tags}
+        }')
+    
+    # Deploy Sentinel
+    SENTINEL_DEPLOY=$(az deployment group create \
+        --name "${DEPLOY_NAME}-sentinel" \
+        --resource-group "${RG_NAME}" \
+        --template-file "./modules/sentinel-deployment.bicep" \
+        --parameters workspaceName="${WORKSPACE_NAME}" location="${LOCATION}" resourceGroupName="${RG_NAME}" tagValues="$TAGS_JSON" \
+        --query "properties.outputs" -o json)
+    
+    echo -e "${GREEN}✅ Microsoft Sentinel deployed successfully${NC}"
+else
+    echo -e "\n${YELLOW}Skipping Microsoft Sentinel deployment (disabled)${NC}"
+fi
+
+echo -e "\n${GREEN}🎉 Central Threat Intelligence V3 deployment complete!${NC}"
+echo -e "Access the CTI dashboard in Azure Portal > Log Analytics Workspace > Workbooks"
