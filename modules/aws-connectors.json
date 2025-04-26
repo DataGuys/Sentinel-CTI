@@ -1,0 +1,891 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for resources"
+      }
+    },
+    "managedIdentityId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the managed identity"
+      }
+    },
+    "logAnalyticsConnectionId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Log Analytics Data Collector connection"
+      }
+    },
+    "logAnalyticsQueryConnectionId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Log Analytics Query connection"
+      }
+    },
+    "ctiWorkspaceName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Log Analytics workspace"
+      }
+    },
+    "ctiWorkspaceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Log Analytics workspace"
+      }
+    },
+    "keyVaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Key Vault"
+      }
+    },
+    "awsSecretName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the AWS credentials secret in Key Vault"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "metadata": {
+        "description": "Tags to apply to resources"
+      }
+    },
+    "performanceTier": {
+      "type": "string",
+      "metadata": {
+        "description": "Performance tier for Logic Apps"
+      },
+      "allowedValues": [
+        "Basic",
+        "Standard",
+        "Premium"
+      ],
+      "defaultValue": "Standard"
+    }
+  },
+  "variables": {
+    "awsSecurityHubConnectorName": "CTI-AWS-SecurityHub-Connector",
+    "awsNetworkFirewallConnectorName": "CTI-AWS-NetworkFirewall-Connector",
+    "awsWafConnectorName": "CTI-AWS-WAF-Connector"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[variables('awsSecurityHubConnectorName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[parameters('managedIdentityId')]": {}
+        }
+      },
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            },
+            "workspaceName": {
+              "defaultValue": "[parameters('ctiWorkspaceName')]",
+              "type": "String"
+            },
+            "keyVaultName": {
+              "defaultValue": "[parameters('keyVaultName')]",
+              "type": "String"
+            },
+            "awsSecretName": {
+              "defaultValue": "[parameters('awsSecretName')]",
+              "type": "String"
+            }
+          },
+          "triggers": {
+            "Recurrence": {
+              "recurrence": {
+                "frequency": "Hour",
+                "interval": 1
+              },
+              "type": "Recurrence"
+            }
+          },
+          "actions": {
+            "Get_AWS_Credentials": {
+              "runAfter": {},
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['keyvault']['connectionId']"
+                  }
+                },
+                "method": "get",
+                "path": "/secrets/@{encodeURIComponent(parameters('awsSecretName'))}/value"
+              }
+            },
+            "Parse_AWS_Credentials": {
+              "runAfter": {
+                "Get_AWS_Credentials": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ParseJson",
+              "inputs": {
+                "content": "@body('Get_AWS_Credentials').value",
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "aws_access_key_id": {
+                      "type": "string"
+                    },
+                    "aws_secret_access_key": {
+                      "type": "string"
+                    },
+                    "aws_region": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "aws_access_key_id",
+                    "aws_secret_access_key",
+                    "aws_region"
+                  ]
+                }
+              }
+            },
+            "Get_High_Confidence_IPs": {
+              "runAfter": {
+                "Parse_AWS_Credentials": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ApiConnection",
+              "inputs": {
+                "body": "CTI_IPIndicators_CL \n| where ConfidenceScore_d >= 80 and TimeGenerated > ago(1h) and isnotempty(IPAddress_s) \n| where not(IPAddress_s matches regex \"^10\\\\.|^172\\\\.(1[6-9]|2[0-9]|3[0-1])\\\\.|^192\\\\.168\\\\.\") \n| where \"AWS Security Hub\" in (split(DistributionTargets_s, \", \")) \n| project IPAddress_s, ConfidenceScore_d, ThreatType_s, Description_s, IndicatorId_g, Action_s \n| limit 500",
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azuremonitorlogs']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/queryData",
+                "queries": {
+                  "resourcegroups": "[resourceGroup().name]",
+                  "resourcename": "@{parameters('workspaceName')}",
+                  "resourcetype": "Log Analytics Workspace",
+                  "subscriptions": "[subscription().subscriptionId]",
+                  "timerange": "Last hour"
+                }
+              }
+            },
+            "For_Each_IP": {
+              "foreach": "@body('Get_High_Confidence_IPs').tables[0].rows",
+              "actions": {
+                "Create_AWS_Security_Finding": {
+                  "runAfter": {},
+                  "type": "Http",
+                  "inputs": {
+                    "method": "POST",
+                    "uri": "https://securityhub.@{body('Parse_AWS_Credentials').aws_region}.amazonaws.com/findings",
+                    "headers": {
+                      "X-Amz-Security-Token": "TOKEN",
+                      "Content-Type": "application/json",
+                      "X-Amz-Date": "@{utcNow('yyyyMMddTHHmmssZ')}",
+                      "X-Amz-Content-Sha256": "UNSIGNED-PAYLOAD"
+                    },
+                    "body": {
+                      "Findings": [
+                        {
+                          "SchemaVersion": "2018-10-08",
+                          "Id": "@{item()[4]}",
+                          "ProductArn": "arn:aws:securityhub:@{body('Parse_AWS_Credentials').aws_region}:012345678901:product/cti/inoculation-engine",
+                          "GeneratorId": "CTI-Inoculation-Engine",
+                          "AwsAccountId": "012345678901",
+                          "Types": [
+                            "TTPs/Command and Control"
+                          ],
+                          "FirstObservedAt": "@{utcNow()}",
+                          "LastObservedAt": "@{utcNow()}",
+                          "CreatedAt": "@{utcNow()}",
+                          "UpdatedAt": "@{utcNow()}",
+                          "Severity": {
+                            "Label": "HIGH",
+                            "Normalized": 70
+                          },
+                          "Title": "High confidence threat intelligence indicator",
+                          "Description": "@{coalesce(item()[3], concat('Threat type: ', item()[2]))}",
+                          "Resources": [
+                            {
+                              "Type": "IpAddress",
+                              "Id": "@{item()[0]}",
+                              "Partition": "aws",
+                              "Region": "@{body('Parse_AWS_Credentials').aws_region}"
+                            }
+                          ],
+                          "ThreatIntelIndicators": [
+                            {
+                              "Type": "IPV4_ADDR",
+                              "Value": "@{item()[0]}",
+                              "Category": "COMMAND_AND_CONTROL",
+                              "LastObservedAt": "@{utcNow()}",
+                              "Source": "CTI",
+                              "SourceUrl": "",
+                              "Confidence": "@{item()[1]}"
+                            }
+                          ],
+                          "Workflow": {
+                            "Status": "NEW"
+                          },
+                          "RecordState": "ACTIVE"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "Log_Distribution_Success": {
+                  "runAfter": {
+                    "Create_AWS_Security_Finding": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "body": "@{utcNow()},@{guid()},@{item()[4]},@{item()[0]},IP,AWS Security Hub,AutoDistribute,Success,Indicator successfully distributed,@{utcNow()}",
+                    "headers": {
+                      "Log-Type": "CTI_DistributionHistory_CL"
+                    },
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['azureloganalyticsdatacollector']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "path": "/api/logs"
+                  }
+                }
+              },
+              "runAfter": {
+                "Get_High_Confidence_IPs": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Foreach",
+              "runtimeConfiguration": {
+                "concurrency": {
+                  "repetitions": 10
+                }
+              }
+            }
+          }
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "azureloganalyticsdatacollector": {
+                "connectionId": "[parameters('logAnalyticsConnectionId')]",
+                "connectionName": "azureloganalyticsdatacollector",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azureloganalyticsdatacollector')]"
+              },
+              "azuremonitorlogs": {
+                "connectionId": "[parameters('logAnalyticsQueryConnectionId')]",
+                "connectionName": "azuremonitorlogs",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azuremonitorlogs')]"
+              },
+              "keyvault": {
+                "connectionId": "[concat(subscription().id, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Web/connections/keyvault')]",
+                "connectionName": "keyvault",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/keyvault')]"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[variables('awsNetworkFirewallConnectorName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[parameters('managedIdentityId')]": {}
+        }
+      },
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            },
+            "workspaceName": {
+              "defaultValue": "[parameters('ctiWorkspaceName')]",
+              "type": "String"
+            },
+            "keyVaultName": {
+              "defaultValue": "[parameters('keyVaultName')]",
+              "type": "String"
+            },
+            "awsSecretName": {
+              "defaultValue": "[parameters('awsSecretName')]",
+              "type": "String"
+            }
+          },
+          "triggers": {
+            "Recurrence": {
+              "recurrence": {
+                "frequency": "Hour",
+                "interval": 2
+              },
+              "type": "Recurrence"
+            }
+          },
+          "actions": {
+            "Get_AWS_Credentials": {
+              "runAfter": {},
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['keyvault']['connectionId']"
+                  }
+                },
+                "method": "get",
+                "path": "/secrets/@{encodeURIComponent(parameters('awsSecretName'))}/value"
+              }
+            },
+            "Parse_AWS_Credentials": {
+              "runAfter": {
+                "Get_AWS_Credentials": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ParseJson",
+              "inputs": {
+                "content": "@body('Get_AWS_Credentials').value",
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "aws_access_key_id": {
+                      "type": "string"
+                    },
+                    "aws_secret_access_key": {
+                      "type": "string"
+                    },
+                    "aws_region": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "aws_access_key_id",
+                    "aws_secret_access_key",
+                    "aws_region"
+                  ]
+                }
+              }
+            },
+            "Get_High_Confidence_IPs": {
+              "runAfter": {
+                "Parse_AWS_Credentials": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ApiConnection",
+              "inputs": {
+                "body": "CTI_IPIndicators_CL \n| where ConfidenceScore_d >= 80 and TimeGenerated > ago(2h) and isnotempty(IPAddress_s) \n| where not(IPAddress_s matches regex \"^10\\\\.|^172\\\\.(1[6-9]|2[0-9]|3[0-1])\\\\.|^192\\\\.168\\\\.\") \n| where \"AWS Network Firewall\" in (split(DistributionTargets_s, \", \")) \n| project IPAddress_s, ConfidenceScore_d, ThreatType_s, Description_s, IndicatorId_g, Action_s \n| limit 500",
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azuremonitorlogs']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/queryData",
+                "queries": {
+                  "resourcegroups": "[resourceGroup().name]",
+                  "resourcename": "@{parameters('workspaceName')}",
+                  "resourcetype": "Log Analytics Workspace",
+                  "subscriptions": "[subscription().subscriptionId]",
+                  "timerange": "Last 2 hours"
+                }
+              }
+            },
+            "For_Each_IP": {
+              "foreach": "@body('Get_High_Confidence_IPs').tables[0].rows",
+              "actions": {
+                "Create_Network_Firewall_Rule": {
+                  "runAfter": {},
+                  "type": "Http",
+                  "inputs": {
+                    "method": "POST",
+                    "uri": "https://network-firewall.@{body('Parse_AWS_Credentials').aws_region}.amazonaws.com/2020-11-12/rulegroups/CTIRuleGroup/rules",
+                    "headers": {
+                      "X-Amz-Security-Token": "TOKEN",
+                      "Content-Type": "application/json",
+                      "X-Amz-Date": "@{utcNow('yyyyMMddTHHmmssZ')}",
+                      "X-Amz-Content-Sha256": "UNSIGNED-PAYLOAD"
+                    },
+                    "body": {
+                      "RuleGroupName": "CTIRuleGroup",
+                      "Rules": [
+                        {
+                          "RuleId": "@{guid()}",
+                          "RuleOrder": 1,
+                          "RuleAction": {
+                            "Type": "DROP"
+                          },
+                          "MatchAttributes": {
+                            "Sources": [
+                              {
+                                "AddressDefinition": "@{item()[0]}/32"
+                              }
+                            ],
+                            "Destinations": [],
+                            "SourcePorts": [],
+                            "DestinationPorts": [],
+                            "Protocols": [],
+                            "TCPFlags": []
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                "Log_Distribution_Success": {
+                  "runAfter": {
+                    "Create_Network_Firewall_Rule": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "body": "@{utcNow()},@{guid()},@{item()[4]},@{item()[0]},IP,AWS Network Firewall,AutoDistribute,Success,Indicator successfully distributed,@{utcNow()}",
+                    "headers": {
+                      "Log-Type": "CTI_DistributionHistory_CL"
+                    },
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['azureloganalyticsdatacollector']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "path": "/api/logs"
+                  }
+                }
+              },
+              "runAfter": {
+                "Get_High_Confidence_IPs": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Foreach",
+              "runtimeConfiguration": {
+                "concurrency": {
+                  "repetitions": 10
+                }
+              }
+            }
+          }
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "azureloganalyticsdatacollector": {
+                "connectionId": "[parameters('logAnalyticsConnectionId')]",
+                "connectionName": "azureloganalyticsdatacollector",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azureloganalyticsdatacollector')]"
+              },
+              "azuremonitorlogs": {
+                "connectionId": "[parameters('logAnalyticsQueryConnectionId')]",
+                "connectionName": "azuremonitorlogs",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azuremonitorlogs')]"
+              },
+              "keyvault": {
+                "connectionId": "[concat(subscription().id, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Web/connections/keyvault')]",
+                "connectionName": "keyvault",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/keyvault')]"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[variables('awsWafConnectorName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[parameters('managedIdentityId')]": {}
+        }
+      },
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            },
+            "workspaceName": {
+              "defaultValue": "[parameters('ctiWorkspaceName')]",
+              "type": "String"
+            },
+            "keyVaultName": {
+              "defaultValue": "[parameters('keyVaultName')]",
+              "type": "String"
+            },
+            "awsSecretName": {
+              "defaultValue": "[parameters('awsSecretName')]",
+              "type": "String"
+            }
+          },
+          "triggers": {
+            "Recurrence": {
+              "recurrence": {
+                "frequency": "Hour",
+                "interval": 4
+              },
+              "type": "Recurrence"
+            }
+          },
+          "actions": {
+            "Get_AWS_Credentials": {
+              "runAfter": {},
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['keyvault']['connectionId']"
+                  }
+                },
+                "method": "get",
+                "path": "/secrets/@{encodeURIComponent(parameters('awsSecretName'))}/value"
+              }
+            },
+            "Parse_AWS_Credentials": {
+              "runAfter": {
+                "Get_AWS_Credentials": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ParseJson",
+              "inputs": {
+                "content": "@body('Get_AWS_Credentials').value",
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "aws_access_key_id": {
+                      "type": "string"
+                    },
+                    "aws_secret_access_key": {
+                      "type": "string"
+                    },
+                    "aws_region": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "aws_access_key_id",
+                    "aws_secret_access_key",
+                    "aws_region"
+                  ]
+                }
+              }
+            },
+            "Get_IP_Set_Id": {
+              "runAfter": {
+                "Parse_AWS_Credentials": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Http",
+              "inputs": {
+                "method": "GET",
+                "uri": "https://wafv2.@{body('Parse_AWS_Credentials').aws_region}.amazonaws.com/2018-11-08/ipsets?Scope=REGIONAL",
+                "headers": {
+                  "X-Amz-Security-Token": "TOKEN",
+                  "Content-Type": "application/json",
+                  "X-Amz-Date": "@{utcNow('yyyyMMddTHHmmssZ')}",
+                  "X-Amz-Content-Sha256": "UNSIGNED-PAYLOAD"
+                }
+              }
+            },
+            "Parse_IP_Set_Response": {
+              "runAfter": {
+                "Get_IP_Set_Id": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ParseJson",
+              "inputs": {
+                "content": "@body('Get_IP_Set_Id')",
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "IPSets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "Name": {
+                            "type": "string"
+                          },
+                          "Id": {
+                            "type": "string"
+                          },
+                          "ARN": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "Get_High_Confidence_IPs": {
+              "runAfter": {
+                "Parse_IP_Set_Response": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ApiConnection",
+              "inputs": {
+                "body": "CTI_IPIndicators_CL \n| where ConfidenceScore_d >= 80 and TimeGenerated > ago(4h) and isnotempty(IPAddress_s) \n| where not(IPAddress_s matches regex \"^10\\\\.|^172\\\\.(1[6-9]|2[0-9]|3[0-1])\\\\.|^192\\\\.168\\\\.\") \n| where \"AWS WAF\" in (split(DistributionTargets_s, \", \")) \n| project IPAddress_s, ConfidenceScore_d, ThreatType_s, Description_s, IndicatorId_g, Action_s \n| limit 500",
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azuremonitorlogs']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/queryData",
+                "queries": {
+                  "resourcegroups": "[resourceGroup().name]",
+                  "resourcename": "@{parameters('workspaceName')}",
+                  "resourcetype": "Log Analytics Workspace",
+                  "subscriptions": "[subscription().subscriptionId]",
+                  "timerange": "Last 4 hours"
+                }
+              }
+            },
+            "Update_WAF_IP_Set": {
+              "runAfter": {
+                "Get_High_Confidence_IPs": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Http",
+              "inputs": {
+                "method": "PUT",
+                "uri": "https://wafv2.@{body('Parse_AWS_Credentials').aws_region}.amazonaws.com/2018-11-08/ipsets/@{first(body('Parse_IP_Set_Response').IPSets)}/update",
+                "headers": {
+                  "X-Amz-Security-Token": "TOKEN",
+                  "Content-Type": "application/json",
+                  "X-Amz-Date": "@{utcNow('yyyyMMddTHHmmssZ')}",
+                  "X-Amz-Content-Sha256": "UNSIGNED-PAYLOAD"
+                },
+                "body": {
+                  "IPSetId": "@{first(body('Parse_IP_Set_Response').IPSets).Id}",
+                  "Name": "@{first(body('Parse_IP_Set_Response').IPSets).Name}",
+                  "Scope": "REGIONAL",
+                  "Addresses": "@{union(variables('existingIPs'), variables('newIPs'))}"
+                }
+              }
+            },
+            "Log_WAF_Distribution_Success": {
+              "runAfter": {
+                "Update_WAF_IP_Set": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Foreach",
+              "foreach": "@body('Get_High_Confidence_IPs').tables[0].rows",
+              "actions": {
+                "Log_Distribution": {
+                  "runAfter": {},
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "body": "@{utcNow()},@{guid()},@{item()[4]},@{item()[0]},IP,AWS WAF,AutoDistribute,Success,Indicator successfully distributed to WAF IP set,@{utcNow()}",
+                    "headers": {
+                      "Log-Type": "CTI_DistributionHistory_CL"
+                    },
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['azureloganalyticsdatacollector']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "path": "/api/logs"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "azureloganalyticsdatacollector": {
+                "connectionId": "[parameters('logAnalyticsConnectionId')]",
+                "connectionName": "azureloganalyticsdatacollector",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azureloganalyticsdatacollector')]"
+              },
+              "azuremonitorlogs": {
+                "connectionId": "[parameters('logAnalyticsQueryConnectionId')]",
+                "connectionName": "azuremonitorlogs",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azuremonitorlogs')]"
+              },
+              "keyvault": {
+                "connectionId": "[concat(subscription().id, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Web/connections/keyvault')]",
+                "connectionName": "keyvault",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/keyvault')]"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "name": "[concat(variables('awsSecurityHubConnectorName'), '-diagnostics')]",
+      "scope": "[resourceId('Microsoft.Logic/workflows', variables('awsSecurityHubConnectorName'))]",
+      "properties": {
+        "workspaceId": "[parameters('ctiWorkspaceId')]",
+        "logs": [
+          {
+            "category": "WorkflowRuntime",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Logic/workflows', variables('awsSecurityHubConnectorName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "name": "[concat(variables('awsNetworkFirewallConnectorName'), '-diagnostics')]",
+      "scope": "[resourceId('Microsoft.Logic/workflows', variables('awsNetworkFirewallConnectorName'))]",
+      "properties": {
+        "workspaceId": "[parameters('ctiWorkspaceId')]",
+        "logs": [
+          {
+            "category": "WorkflowRuntime",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Logic/workflows', variables('awsNetworkFirewallConnectorName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "name": "[concat(variables('awsWafConnectorName'), '-diagnostics')]",
+      "scope": "[resourceId('Microsoft.Logic/workflows', variables('awsWafConnectorName'))]",
+      "properties": {
+        "workspaceId": "[parameters('ctiWorkspaceId')]",
+        "logs": [
+          {
+            "category": "WorkflowRuntime",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Logic/workflows', variables('awsWafConnectorName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "awsSecurityHubConnectorResourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Logic/workflows', variables('awsSecurityHubConnectorName'))]"
+    },
+    "awsSecurityHubConnectorName": {
+      "type": "string",
+      "value": "[variables('awsSecurityHubConnectorName')]"
+    },
+    "awsNetworkFirewallConnectorResourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Logic/workflows', variables('awsNetworkFirewallConnectorName'))]"
+    },
+    "awsNetworkFirewallConnectorName": {
+      "type": "string",
+      "value": "[variables('awsNetworkFirewallConnectorName')]"
+    },
+    "awsWafConnectorResourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Logic/workflows', variables('awsWafConnectorName'))]"
+    },
+    "awsWafConnectorName": {
+      "type": "string",
+      "value": "[variables('awsWafConnectorName')]"
+    }
+  }
+}
