@@ -1,0 +1,820 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workspaceName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Log Analytics workspace"
+      }
+    },
+    "tablePlan": {
+      "type": "string",
+      "allowedValues": [
+        "Analytics",
+        "Basic",
+        "Standard"
+      ],
+      "metadata": {
+        "description": "Plan for Log Analytics tables"
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for resources"
+      }
+    },
+    "retentionDays": {
+      "type": "int",
+      "metadata": {
+        "description": "Data retention period in days"
+      }
+    }
+  },
+  "variables": {
+    "tableConfig": {
+      "Analytics": {
+        "retentionDays": "[parameters('retentionDays')]",
+        "totalRetentionDays": "[add(parameters('retentionDays'), 30)]"
+      },
+      "Basic": {
+        "retentionDays": 30,
+        "totalRetentionDays": 60
+      },
+      "Standard": {
+        "retentionDays": 90,
+        "totalRetentionDays": 180
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces/tables",
+      "apiVersion": "2021-12-01-preview",
+      "name": "[concat(parameters('workspaceName'), '/CTI_ThreatIntelIndicator_CL')]",
+      "properties": {
+        "schema": {
+          "name": "CTI_ThreatIntelIndicator_CL",
+          "columns": [
+            {
+              "name": "TimeGenerated",
+              "type": "datetime",
+              "description": "Time when the record was created"
+            },
+            {
+              "name": "Type_s",
+              "type": "string",
+              "description": "Indicator type (ip-addr, domain-name, url, file-sha256, etc.)"
+            },
+            {
+              "name": "Value_s",
+              "type": "string",
+              "description": "Indicator value"
+            },
+            {
+              "name": "Pattern_s",
+              "type": "string",
+              "description": "STIX pattern (if applicable)"
+            },
+            {
+              "name": "Name_s",
+              "type": "string",
+              "description": "Display name for the indicator"
+            },
+            {
+              "name": "Description_s",
+              "type": "string",
+              "description": "Detailed description"
+            },
+            {
+              "name": "Action_s",
+              "type": "string",
+              "description": "Action to take (e.g., Alert, Block)"
+            },
+            {
+              "name": "Confidence_d",
+              "type": "real",
+              "description": "Confidence score (0-100)"
+            },
+            {
+              "name": "ValidFrom_t",
+              "type": "datetime",
+              "description": "When the indicator becomes valid"
+            },
+            {
+              "name": "ValidUntil_t",
+              "type": "datetime",
+              "description": "When the indicator expires"
+            },
+            {
+              "name": "TLP_s",
+              "type": "string",
+              "description": "Traffic Light Protocol designation"
+            },
+            {
+              "name": "ThreatType_s",
+              "type": "string",
+              "description": "Type of threat (e.g., Malware, C2, Phishing)"
+            },
+            {
+              "name": "DistributionTargets_s",
+              "type": "string",
+              "description": "Comma-separated list of distribution targets"
+            },
+            {
+              "name": "IndicatorId_g",
+              "type": "string",
+              "description": "Unique identifier for the indicator"
+            },
+            {
+              "name": "Active_b",
+              "type": "bool",
+              "description": "Whether the indicator is active"
+            },
+            {
+              "name": "Source_s",
+              "type": "string",
+              "description": "Source of the indicator"
+            },
+            {
+              "name": "EnforcementStatus_s",
+              "type": "string",
+              "description": "Current distribution status"
+            }
+          ]
+        },
+        "plan": "[parameters('tablePlan')]",
+        "retentionInDays": "[variables('tableConfig')[parameters('tablePlan')].retentionDays]",
+        "totalRetentionInDays": "[variables('tableConfig')[parameters('tablePlan')].totalRetentionDays]"
+      }
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces/tables",
+      "apiVersion": "2021-12-01-preview",
+      "name": "[concat(parameters('workspaceName'), '/CTI_IPIndicators_CL')]",
+      "properties": {
+        "schema": {
+          "name": "CTI_IPIndicators_CL",
+          "columns": [
+            {
+              "name": "TimeGenerated",
+              "type": "datetime",
+              "description": "Time when the record was created"
+            },
+            {
+              "name": "IPAddress_s",
+              "type": "string",
+              "description": "IP address value"
+            },
+            {
+              "name": "ConfidenceScore_d",
+              "type": "real",
+              "description": "Confidence score (0-100)"
+            },
+            {
+              "name": "SourceFeed_s",
+              "type": "string",
+              "description": "Source of the indicator"
+            },
+            {
+              "name": "FirstSeen_t",
+              "type": "datetime",
+              "description": "When first observed"
+            },
+            {
+              "name": "ExpirationDateTime_t",
+              "type": "datetime",
+              "description": "When the indicator expires"
+            },
+            {
+              "name": "ThreatType_s",
+              "type": "string",
+              "description": "Type of threat"
+            },
+            {
+              "name": "Description_s",
+              "type": "string",
+              "description": "Detailed description"
+            },
+            {
+              "name": "Active_b",
+              "type": "bool",
+              "description": "Whether the indicator is active"
+            },
+            {
+              "name": "Action_s",
+              "type": "string",
+              "description": "Action to take"
+            },
+            {
+              "name": "DistributionTargets_s",
+              "type": "string",
+              "description": "Comma-separated list of distribution targets"
+            },
+            {
+              "name": "LastUpdated_t",
+              "type": "datetime",
+              "description": "When last updated"
+            },
+            {
+              "name": "TLP_s",
+              "type": "string",
+              "description": "Traffic Light Protocol designation"
+            },
+            {
+              "name": "IndicatorId_g",
+              "type": "string",
+              "description": "Unique identifier for the indicator"
+            }
+          ]
+        },
+        "plan": "[parameters('tablePlan')]",
+        "retentionInDays": "[variables('tableConfig')[parameters('tablePlan')].retentionDays]",
+        "totalRetentionInDays": "[variables('tableConfig')[parameters('tablePlan')].totalRetentionDays]"
+      }
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces/tables",
+      "apiVersion": "2021-12-01-preview",
+      "name": "[concat(parameters('workspaceName'), '/CTI_DomainIndicators_CL')]",
+      "properties": {
+        "schema": {
+          "name": "CTI_DomainIndicators_CL",
+          "columns": [
+            {
+              "name": "TimeGenerated",
+              "type": "datetime",
+              "description": "Time when the record was created"
+            },
+            {
+              "name": "Domain_s",
+              "type": "string",
+              "description": "Domain name value"
+            },
+            {
+              "name": "ConfidenceScore_d",
+              "type": "real",
+              "description": "Confidence score (0-100)"
+            },
+            {
+              "name": "SourceFeed_s",
+              "type": "string",
+              "description": "Source of the indicator"
+            },
+            {
+              "name": "FirstSeen_t",
+              "type": "datetime",
+              "description": "When first observed"
+            },
+            {
+              "name": "ExpirationDateTime_t",
+              "type": "datetime",
+              "description": "When the indicator expires"
+            },
+            {
+              "name": "ThreatType_s",
+              "type": "string",
+              "description": "Type of threat"
+            },
+            {
+              "name": "Description_s",
+              "type": "string",
+              "description": "Detailed description"
+            },
+            {
+              "name": "Active_b",
+              "type": "bool",
+              "description": "Whether the indicator is active"
+            },
+            {
+              "name": "Action_s",
+              "type": "string",
+              "description": "Action to take"
+            },
+            {
+              "name": "DistributionTargets_s",
+              "type": "string",
+              "description": "Comma-separated list of distribution targets"
+            },
+            {
+              "name": "LastUpdated_t",
+              "type": "datetime",
+              "description": "When last updated"
+            },
+            {
+              "name": "TLP_s",
+              "type": "string",
+              "description": "Traffic Light Protocol designation"
+            },
+            {
+              "name": "IndicatorId_g",
+              "type": "string",
+              "description": "Unique identifier for the indicator"
+            }
+          ]
+        },
+        "plan": "[parameters('tablePlan')]",
+        "retentionInDays": "[variables('tableConfig')[parameters('tablePlan')].retentionDays]",
+        "totalRetentionInDays": "[variables('tableConfig')[parameters('tablePlan')].totalRetentionDays]"
+      }
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces/tables",
+      "apiVersion": "2021-12-01-preview",
+      "name": "[concat(parameters('workspaceName'), '/CTI_URLIndicators_CL')]",
+      "properties": {
+        "schema": {
+          "name": "CTI_URLIndicators_CL",
+          "columns": [
+            {
+              "name": "TimeGenerated",
+              "type": "datetime",
+              "description": "Time when the record was created"
+            },
+            {
+              "name": "URL_s",
+              "type": "string",
+              "description": "URL value"
+            },
+            {
+              "name": "ConfidenceScore_d",
+              "type": "real",
+              "description": "Confidence score (0-100)"
+            },
+            {
+              "name": "SourceFeed_s",
+              "type": "string",
+              "description": "Source of the indicator"
+            },
+            {
+              "name": "FirstSeen_t",
+              "type": "datetime",
+              "description": "When first observed"
+            },
+            {
+              "name": "ExpirationDateTime_t",
+              "type": "datetime",
+              "description": "When the indicator expires"
+            },
+            {
+              "name": "ThreatType_s",
+              "type": "string",
+              "description": "Type of threat"
+            },
+            {
+              "name": "Description_s",
+              "type": "string",
+              "description": "Detailed description"
+            },
+            {
+              "name": "Active_b",
+              "type": "bool",
+              "description": "Whether the indicator is active"
+            },
+            {
+              "name": "Action_s",
+              "type": "string",
+              "description": "Action to take"
+            },
+            {
+              "name": "DistributionTargets_s",
+              "type": "string",
+              "description": "Comma-separated list of distribution targets"
+            },
+            {
+              "name": "LastUpdated_t",
+              "type": "datetime",
+              "description": "When last updated"
+            },
+            {
+              "name": "TLP_s",
+              "type": "string",
+              "description": "Traffic Light Protocol designation"
+            },
+            {
+              "name": "IndicatorId_g",
+              "type": "string",
+              "description": "Unique identifier for the indicator"
+            }
+          ]
+        },
+        "plan": "[parameters('tablePlan')]",
+        "retentionInDays": "[variables('tableConfig')[parameters('tablePlan')].retentionDays]",
+        "totalRetentionInDays": "[variables('tableConfig')[parameters('tablePlan')].totalRetentionDays]"
+      }
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces/tables",
+      "apiVersion": "2021-12-01-preview",
+      "name": "[concat(parameters('workspaceName'), '/CTI_FileHashIndicators_CL')]",
+      "properties": {
+        "schema": {
+          "name": "CTI_FileHashIndicators_CL",
+          "columns": [
+            {
+              "name": "TimeGenerated",
+              "type": "datetime",
+              "description": "Time when the record was created"
+            },
+            {
+              "name": "SHA256_s",
+              "type": "string",
+              "description": "SHA256 hash value"
+            },
+            {
+              "name": "SHA1_s",
+              "type": "string",
+              "description": "SHA1 hash value"
+            },
+            {
+              "name": "MD5_s",
+              "type": "string",
+              "description": "MD5 hash value"
+            },
+            {
+              "name": "ConfidenceScore_d",
+              "type": "real",
+              "description": "Confidence score (0-100)"
+            },
+            {
+              "name": "SourceFeed_s",
+              "type": "string",
+              "description": "Source of the indicator"
+            },
+            {
+              "name": "FirstSeen_t",
+              "type": "datetime",
+              "description": "When first observed"
+            },
+            {
+              "name": "ExpirationDateTime_t",
+              "type": "datetime",
+              "description": "When the indicator expires"
+            },
+            {
+              "name": "ThreatType_s",
+              "type": "string",
+              "description": "Type of threat"
+            },
+            {
+              "name": "Description_s",
+              "type": "string",
+              "description": "Detailed description"
+            },
+            {
+              "name": "Active_b",
+              "type": "bool",
+              "description": "Whether the indicator is active"
+            },
+            {
+              "name": "Action_s",
+              "type": "string",
+              "description": "Action to take"
+            },
+            {
+              "name": "DistributionTargets_s",
+              "type": "string",
+              "description": "Comma-separated list of distribution targets"
+            },
+            {
+              "name": "LastUpdated_t",
+              "type": "datetime",
+              "description": "When last updated"
+            },
+            {
+              "name": "TLP_s",
+              "type": "string",
+              "description": "Traffic Light Protocol designation"
+            },
+            {
+              "name": "IndicatorId_g",
+              "type": "string",
+              "description": "Unique identifier for the indicator"
+            }
+          ]
+        },
+        "plan": "[parameters('tablePlan')]",
+        "retentionInDays": "[variables('tableConfig')[parameters('tablePlan')].retentionDays]",
+        "totalRetentionInDays": "[variables('tableConfig')[parameters('tablePlan')].totalRetentionDays]"
+      }
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces/tables",
+      "apiVersion": "2021-12-01-preview",
+      "name": "[concat(parameters('workspaceName'), '/CTI_IntelligenceFeeds_CL')]",
+      "properties": {
+        "schema": {
+          "name": "CTI_IntelligenceFeeds_CL",
+          "columns": [
+            {
+              "name": "TimeGenerated",
+              "type": "datetime",
+              "description": "Time when the record was created"
+            },
+            {
+              "name": "FeedId_g",
+              "type": "string",
+              "description": "Unique identifier for the feed"
+            },
+            {
+              "name": "FeedType_s",
+              "type": "string",
+              "description": "Type of feed (TAXII, CSV, JSON, MDTI)"
+            },
+            {
+              "name": "FeedName_s",
+              "type": "string",
+              "description": "Display name for the feed"
+            },
+            {
+              "name": "FeedURL_s",
+              "type": "string",
+              "description": "URL of the feed"
+            },
+            {
+              "name": "RefreshInterval_d",
+              "type": "real",
+              "description": "Hours between refreshes"
+            },
+            {
+              "name": "LastUpdateTime_t",
+              "type": "datetime",
+              "description": "Last successful update"
+            },
+            {
+              "name": "Description_s",
+              "type": "string",
+              "description": "Feed description"
+            },
+            {
+              "name": "DefaultTLP_s",
+              "type": "string",
+              "description": "Default TLP classification"
+            },
+            {
+              "name": "DistributionTargets_s",
+              "type": "string",
+              "description": "Default distribution targets"
+            },
+            {
+              "name": "ConfigData_s",
+              "type": "string",
+              "description": "Feed-specific JSON configuration"
+            },
+            {
+              "name": "Active_b",
+              "type": "bool",
+              "description": "Whether the feed is active"
+            }
+          ]
+        },
+        "plan": "[parameters('tablePlan')]",
+        "retentionInDays": "[variables('tableConfig')[parameters('tablePlan')].retentionDays]",
+        "totalRetentionInDays": "[variables('tableConfig')[parameters('tablePlan')].totalRetentionDays]"
+      }
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces/tables",
+      "apiVersion": "2021-12-01-preview",
+      "name": "[concat(parameters('workspaceName'), '/CTI_DistributionHistory_CL')]",
+      "properties": {
+        "schema": {
+          "name": "CTI_DistributionHistory_CL",
+          "columns": [
+            {
+              "name": "TimeGenerated",
+              "type": "datetime",
+              "description": "Time when the record was created"
+            },
+            {
+              "name": "OperationId_g",
+              "type": "string",
+              "description": "Unique operation identifier"
+            },
+            {
+              "name": "IndicatorId_g",
+              "type": "string",
+              "description": "Reference to the indicator"
+            },
+            {
+              "name": "IndicatorValue_s",
+              "type": "string",
+              "description": "Value of the indicator"
+            },
+            {
+              "name": "IndicatorType_s",
+              "type": "string",
+              "description": "Type of indicator"
+            },
+            {
+              "name": "TargetSystem_s",
+              "type": "string",
+              "description": "Target system name"
+            },
+            {
+              "name": "DistributionType_s",
+              "type": "string",
+              "description": "Type of distribution (Manual, Auto)"
+            },
+            {
+              "name": "Status_s",
+              "type": "string",
+              "description": "Status of the operation"
+            },
+            {
+              "name": "Details_s",
+              "type": "string",
+              "description": "Additional details"
+            },
+            {
+              "name": "Timestamp_t",
+              "type": "datetime",
+              "description": "When the operation completed"
+            }
+          ]
+        },
+        "plan": "[parameters('tablePlan')]",
+        "retentionInDays": "[variables('tableConfig')[parameters('tablePlan')].retentionDays]",
+        "totalRetentionInDays": "[variables('tableConfig')[parameters('tablePlan')].totalRetentionDays]"
+      }
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces/tables",
+      "apiVersion": "2021-12-01-preview",
+      "name": "[concat(parameters('workspaceName'), '/CTI_StixData_CL')]",
+      "properties": {
+        "schema": {
+          "name": "CTI_StixData_CL",
+          "columns": [
+            {
+              "name": "TimeGenerated",
+              "type": "datetime",
+              "description": "Time when the record was created"
+            },
+            {
+              "name": "RawSTIX",
+              "type": "string",
+              "description": "Raw STIX JSON data"
+            },
+            {
+              "name": "STIXType",
+              "type": "string",
+              "description": "Type of STIX object"
+            },
+            {
+              "name": "STIXId",
+              "type": "string",
+              "description": "Identifier for the STIX object"
+            },
+            {
+              "name": "CreatedBy",
+              "type": "string",
+              "description": "Creator of the STIX object"
+            },
+            {
+              "name": "Source",
+              "type": "string",
+              "description": "Source feed name"
+            }
+          ]
+        },
+        "plan": "[parameters('tablePlan')]",
+        "retentionInDays": "[variables('tableConfig')[parameters('tablePlan')].retentionDays]",
+        "totalRetentionInDays": "[variables('tableConfig')[parameters('tablePlan')].totalRetentionDays]"
+      }
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces/tables",
+      "apiVersion": "2021-12-01-preview",
+      "name": "[concat(parameters('workspaceName'), '/CTI_ProcessingErrors_CL')]",
+      "properties": {
+        "schema": {
+          "name": "CTI_ProcessingErrors_CL",
+          "columns": [
+            {
+              "name": "TimeGenerated",
+              "type": "datetime",
+              "description": "Time when the error occurred"
+            },
+            {
+              "name": "OperationId_g",
+              "type": "string",
+              "description": "Unique operation identifier"
+            },
+            {
+              "name": "IndicatorId_g",
+              "type": "string",
+              "description": "Reference to the indicator"
+            },
+            {
+              "name": "ComponentName_s",
+              "type": "string",
+              "description": "Component where the error occurred"
+            },
+            {
+              "name": "ErrorType_s",
+              "type": "string",
+              "description": "Type of error"
+            },
+            {
+              "name": "ErrorMessage_s",
+              "type": "string",
+              "description": "Error message"
+            },
+            {
+              "name": "ErrorDetails_s",
+              "type": "string",
+              "description": "Detailed error information"
+            },
+            {
+              "name": "RetryCount_d",
+              "type": "real",
+              "description": "Number of retry attempts"
+            }
+          ]
+        },
+        "plan": "[parameters('tablePlan')]",
+        "retentionInDays": "[variables('tableConfig')[parameters('tablePlan')].retentionDays]",
+        "totalRetentionInDays": "[variables('tableConfig')[parameters('tablePlan')].totalRetentionDays]"
+      }
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces/tables",
+      "apiVersion": "2021-12-01-preview",
+      "name": "[concat(parameters('workspaceName'), '/CTI_TelemetryData_CL')]",
+      "properties": {
+        "schema": {
+          "name": "CTI_TelemetryData_CL",
+          "columns": [
+            {
+              "name": "TimeGenerated",
+              "type": "datetime",
+              "description": "Time when the record was created"
+            },
+            {
+              "name": "OperationId_g",
+              "type": "string",
+              "description": "Unique operation identifier"
+            },
+            {
+              "name": "ComponentName_s",
+              "type": "string",
+              "description": "Component name"
+            },
+            {
+              "name": "OperationType_s",
+              "type": "string",
+              "description": "Type of operation"
+            },
+            {
+              "name": "ProcessedCount_d",
+              "type": "real",
+              "description": "Number of items processed"
+            },
+            {
+              "name": "SuccessCount_d",
+              "type": "real",
+              "description": "Number of successful operations"
+            },
+            {
+              "name": "ErrorCount_d",
+              "type": "real",
+              "description": "Number of errors"
+            },
+            {
+              "name": "OperationDuration_d",
+              "type": "real",
+              "description": "Duration of operation in milliseconds"
+            },
+            {
+              "name": "AdditionalData_s",
+              "type": "string",
+              "description": "Additional telemetry data"
+            }
+          ]
+        },
+        "plan": "[parameters('tablePlan')]",
+        "retentionInDays": "[variables('tableConfig')[parameters('tablePlan')].retentionDays]",
+        "totalRetentionInDays": "[variables('tableConfig')[parameters('tablePlan')].totalRetentionDays]"
+      }
+    }
+  ],
+  "outputs": {
+    "tables": {
+      "type": "array",
+      "value": [
+        "CTI_ThreatIntelIndicator_CL",
+        "CTI_IPIndicators_CL",
+        "CTI_DomainIndicators_CL",
+        "CTI_URLIndicators_CL",
+        "CTI_FileHashIndicators_CL",
+        "CTI_IntelligenceFeeds_CL",
+        "CTI_DistributionHistory_CL",
+        "CTI_StixData_CL",
+        "CTI_ProcessingErrors_CL",
+        "CTI_TelemetryData_CL"
+      ]
+    }
+  }
+}
