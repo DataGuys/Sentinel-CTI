@@ -1,0 +1,1025 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for resources"
+      }
+    },
+    "managedIdentityId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the managed identity"
+      }
+    },
+    "logAnalyticsConnectionId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Log Analytics Data Collector connection"
+      }
+    },
+    "logAnalyticsQueryConnectionId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Log Analytics Query connection"
+      }
+    },
+    "microsoftGraphConnectionId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Microsoft Graph connection"
+      }
+    },
+    "ctiWorkspaceName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Log Analytics workspace"
+      }
+    },
+    "ctiWorkspaceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Log Analytics workspace"
+      }
+    },
+    "keyVaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Key Vault"
+      }
+    },
+    "clientSecretName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the client secret in Key Vault"
+      }
+    },
+    "appClientId": {
+      "type": "string",
+      "metadata": {
+        "description": "Client ID of the app registration"
+      }
+    },
+    "tenantId": {
+      "type": "string",
+      "metadata": {
+        "description": "Tenant ID"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "metadata": {
+        "description": "Tags to apply to resources"
+      }
+    },
+    "performanceTier": {
+      "type": "string",
+      "metadata": {
+        "description": "Performance tier for Logic Apps"
+      },
+      "allowedValues": [
+        "Basic",
+        "Standard",
+        "Premium"
+      ],
+      "defaultValue": "Standard"
+    },
+    "maxRetryCount": {
+      "type": "int",
+      "metadata": {
+        "description": "Maximum retry count for operations"
+      },
+      "defaultValue": 3
+    }
+  },
+  "variables": {
+    "securityApiBaseUrl": "https://api.securitycenter.microsoft.com",
+    "graphApiBaseUrl": "https://graph.microsoft.com",
+    "defenderConnectorName": "CTI-DefenderXDR-Connector",
+    "sentinelConnectorName": "CTI-Sentinel-Connector",
+    "entraConnectorName": "CTI-EntraID-Connector",
+    "exoConnectorName": "CTI-ExchangeOnline-Connector"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[variables('defenderConnectorName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[parameters('managedIdentityId')]": {}
+        }
+      },
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            },
+            "tenantId": {
+              "defaultValue": "[parameters('tenantId')]",
+              "type": "String"
+            },
+            "clientId": {
+              "defaultValue": "[parameters('appClientId')]",
+              "type": "String"
+            },
+            "workspaceName": {
+              "defaultValue": "[parameters('ctiWorkspaceName')]",
+              "type": "String"
+            },
+            "securityApiUrl": {
+              "defaultValue": "[variables('securityApiBaseUrl')]",
+              "type": "String"
+            },
+            "maxRetryCount": {
+              "defaultValue": "[parameters('maxRetryCount')]",
+              "type": "Int"
+            }
+          },
+          "triggers": {
+            "Recurrence": {
+              "recurrence": {
+                "frequency": "Hour",
+                "interval": 1
+              },
+              "type": "Recurrence"
+            }
+          },
+          "actions": {
+            "Get_Authentication_Token": {
+              "runAfter": {},
+              "type": "Http",
+              "inputs": {
+                "method": "POST",
+                "uri": "[concat('https://login.microsoftonline.com/', parameters('tenantId'), '/oauth2/token')]",
+                "headers": {
+                  "Content-Type": "application/x-www-form-urlencoded"
+                },
+                "body": "[concat('grant_type=client_credentials&client_id=', parameters('appClientId'), '&client_secret=@{listSecrets(resourceId(''Microsoft.KeyVault/vaults/secrets'', parameters(''keyVaultName''), parameters(''clientSecretName'')), ''2023-02-01'').value}&resource=https://api.securitycenter.windows.com/')]"
+              }
+            },
+            "Process_High_Confidence_IPs": {
+              "runAfter": {
+                "Get_Authentication_Token": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ApiConnection",
+              "inputs": {
+                "body": "CTI_IPIndicators_CL \n| where ConfidenceScore_d >= 80 and TimeGenerated > ago(1h) and isnotempty(IPAddress_s) \n| where not(IPAddress_s matches regex \"^10\\\\.|^172\\\\.(1[6-9]|2[0-9]|3[0-1])\\\\.|^192\\\\.168\\\\.\") \n| where \"Microsoft Defender XDR\" in (split(DistributionTargets_s, \", \")) \n| project IPAddress_s, ConfidenceScore_d, ThreatType_s, Description_s, IndicatorId_g, Action_s \n| limit 500",
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azuremonitorlogs']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/queryData",
+                "queries": {
+                  "resourcegroups": "[resourceGroup().name]",
+                  "resourcename": "@{parameters('workspaceName')}",
+                  "resourcetype": "Log Analytics Workspace",
+                  "subscriptions": "[subscription().subscriptionId]",
+                  "timerange": "Last hour"
+                }
+              },
+              "retryPolicy": {
+                "type": "fixed",
+                "count": "@parameters('maxRetryCount')",
+                "interval": "PT10S"
+              }
+            },
+            "For_Each_IP": {
+              "foreach": "@body('Process_High_Confidence_IPs').tables[0].rows",
+              "actions": {
+                "Create_Defender_Indicator": {
+                  "runAfter": {},
+                  "type": "Http",
+                  "inputs": {
+                    "method": "POST",
+                    "uri": "[concat(variables('securityApiBaseUrl'), '/api/indicators')]",
+                    "headers": {
+                      "Content-Type": "application/json",
+                      "Authorization": "Bearer @{body('Get_Authentication_Token').access_token}"
+                    },
+                    "body": {
+                      "indicatorValue": "@{item()[0]}",
+                      "indicatorType": "IpAddress",
+                      "title": "High Confidence Threat Intelligence Indicator",
+                      "description": "@{coalesce(item()[3], concat('Threat type: ', item()[2]))}",
+                      "expirationTime": "@{addHours(utcNow(), 168)}",
+                      "action": "@{coalesce(item()[5], 'Block')}",
+                      "severity": "High",
+                      "recommendedActions": "Block traffic to/from this IP address",
+                      "rbacGroupNames": [],
+                      "generateAlert": true
+                    }
+                  },
+                  "retryPolicy": {
+                    "type": "fixed",
+                    "count": "@parameters('maxRetryCount')",
+                    "interval": "PT10S"
+                  }
+                },
+                "Log_Distribution_Success": {
+                  "runAfter": {
+                    "Create_Defender_Indicator": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "body": "@{utcNow()},@{guid()},@{item()[4]},@{item()[0]},IP,Microsoft Defender XDR,AutoDistribute,Success,Indicator successfully distributed,@{utcNow()}",
+                    "headers": {
+                      "Log-Type": "CTI_DistributionHistory_CL"
+                    },
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['azureloganalyticsdatacollector']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "path": "/api/logs"
+                  }
+                }
+              },
+              "runAfter": {
+                "Process_High_Confidence_IPs": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Foreach",
+              "runtimeConfiguration": {
+                "concurrency": {
+                  "repetitions": 10
+                }
+              }
+            },
+            "Process_High_Confidence_Domains": {
+              "runAfter": {
+                "For_Each_IP": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ApiConnection",
+              "inputs": {
+                "body": "CTI_DomainIndicators_CL \n| where ConfidenceScore_d >= 80 and TimeGenerated > ago(1h) and isnotempty(Domain_s) \n| where \"Microsoft Defender XDR\" in (split(DistributionTargets_s, \", \")) \n| project Domain_s, ConfidenceScore_d, ThreatType_s, Description_s, IndicatorId_g, Action_s \n| limit 500",
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azuremonitorlogs']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/queryData",
+                "queries": {
+                  "resourcegroups": "[resourceGroup().name]",
+                  "resourcename": "@{parameters('workspaceName')}",
+                  "resourcetype": "Log Analytics Workspace",
+                  "subscriptions": "[subscription().subscriptionId]",
+                  "timerange": "Last hour"
+                }
+              },
+              "retryPolicy": {
+                "type": "fixed",
+                "count": "@parameters('maxRetryCount')",
+                "interval": "PT10S"
+              }
+            },
+            "For_Each_Domain": {
+              "foreach": "@body('Process_High_Confidence_Domains').tables[0].rows",
+              "actions": {
+                "Create_Defender_Domain_Indicator": {
+                  "runAfter": {},
+                  "type": "Http",
+                  "inputs": {
+                    "method": "POST",
+                    "uri": "[concat(variables('securityApiBaseUrl'), '/api/indicators')]",
+                    "headers": {
+                      "Content-Type": "application/json",
+                      "Authorization": "Bearer @{body('Get_Authentication_Token').access_token}"
+                    },
+                    "body": {
+                      "indicatorValue": "@{item()[0]}",
+                      "indicatorType": "DomainName",
+                      "title": "High Confidence Threat Intelligence Indicator",
+                      "description": "@{coalesce(item()[3], concat('Threat type: ', item()[2]))}",
+                      "expirationTime": "@{addHours(utcNow(), 168)}",
+                      "action": "@{coalesce(item()[5], 'Block')}",
+                      "severity": "High",
+                      "recommendedActions": "Block traffic to/from this domain",
+                      "rbacGroupNames": [],
+                      "generateAlert": true
+                    }
+                  },
+                  "retryPolicy": {
+                    "type": "fixed",
+                    "count": "@parameters('maxRetryCount')",
+                    "interval": "PT10S"
+                  }
+                },
+                "Log_Domain_Distribution_Success": {
+                  "runAfter": {
+                    "Create_Defender_Domain_Indicator": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "body": "@{utcNow()},@{guid()},@{item()[4]},@{item()[0]},Domain,Microsoft Defender XDR,AutoDistribute,Success,Indicator successfully distributed,@{utcNow()}",
+                    "headers": {
+                      "Log-Type": "CTI_DistributionHistory_CL"
+                    },
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['azureloganalyticsdatacollector']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "path": "/api/logs"
+                  }
+                }
+              },
+              "runAfter": {
+                "Process_High_Confidence_Domains": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Foreach",
+              "runtimeConfiguration": {
+                "concurrency": {
+                  "repetitions": 10
+                }
+              }
+            }
+          }
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "azureloganalyticsdatacollector": {
+                "connectionId": "[parameters('logAnalyticsConnectionId')]",
+                "connectionName": "azureloganalyticsdatacollector",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azureloganalyticsdatacollector')]"
+              },
+              "azuremonitorlogs": {
+                "connectionId": "[parameters('logAnalyticsQueryConnectionId')]",
+                "connectionName": "azuremonitorlogs",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azuremonitorlogs')]"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[variables('sentinelConnectorName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[parameters('managedIdentityId')]": {}
+        }
+      },
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            },
+            "workspaceName": {
+              "defaultValue": "[parameters('ctiWorkspaceName')]",
+              "type": "String"
+            },
+            "graphApiUrl": {
+              "defaultValue": "[variables('graphApiBaseUrl')]",
+              "type": "String"
+            },
+            "maxRetryCount": {
+              "defaultValue": "[parameters('maxRetryCount')]",
+              "type": "Int"
+            }
+          },
+          "triggers": {
+            "Recurrence": {
+              "recurrence": {
+                "frequency": "Hour",
+                "interval": 2
+              },
+              "type": "Recurrence"
+            }
+          },
+          "actions": {
+            "Get_High_Confidence_Indicators": {
+              "runAfter": {},
+              "type": "ApiConnection",
+              "inputs": {
+                "body": "CTI_ThreatIntelIndicator_CL \n| where Confidence_d >= 80 and Active_b == true\n| where TimeGenerated > ago(2h)\n| where \"Microsoft Sentinel\" in (split(DistributionTargets_s, \", \"))\n| project Type_s, Value_s, Confidence_d, ThreatType_s, Description_s, Action_s, IndicatorId_g, ValidUntil_t\n| limit 500",
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azuremonitorlogs']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/queryData",
+                "queries": {
+                  "resourcegroups": "[resourceGroup().name]",
+                  "resourcename": "@{parameters('workspaceName')}",
+                  "resourcetype": "Log Analytics Workspace",
+                  "subscriptions": "[subscription().subscriptionId]",
+                  "timerange": "Last 2 hours"
+                }
+              },
+              "retryPolicy": {
+                "type": "fixed",
+                "count": "@parameters('maxRetryCount')",
+                "interval": "PT10S"
+              }
+            },
+            "For_Each_Indicator": {
+              "foreach": "@body('Get_High_Confidence_Indicators').tables[0].rows",
+              "actions": {
+                "Create_Sentinel_Indicator": {
+                  "runAfter": {},
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "body": {
+                      "action": "@{coalesce(item()[5], 'block')}",
+                      "confidence": "@{item()[2]}",
+                      "description": "@{coalesce(item()[4], concat('Threat type: ', item()[3]))}",
+                      "expirationDateTime": "@{coalesce(item()[7], addDays(utcNow(), 14))}",
+                      "threatType": "@{coalesce(item()[3], 'WatchList')}",
+                      "tlpLevel": "green",
+                      "targetProduct": "Microsoft Sentinel"
+                    },
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['microsoftgraph']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "path": "/v1.0/security/tiIndicators",
+                    "queries": {
+                      "$filter": "targetProduct eq 'Microsoft Sentinel'"
+                    }
+                  },
+                  "retryPolicy": {
+                    "type": "fixed",
+                    "count": "@parameters('maxRetryCount')",
+                    "interval": "PT10S"
+                  }
+                },
+                "Log_Sentinel_Distribution_Success": {
+                  "runAfter": {
+                    "Create_Sentinel_Indicator": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "body": "@{utcNow()},@{guid()},@{item()[6]},@{item()[1]},@{item()[0]},Microsoft Sentinel,AutoDistribute,Success,Indicator successfully distributed,@{utcNow()}",
+                    "headers": {
+                      "Log-Type": "CTI_DistributionHistory_CL"
+                    },
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['azureloganalyticsdatacollector']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "path": "/api/logs"
+                  }
+                }
+              },
+              "runAfter": {
+                "Get_High_Confidence_Indicators": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Foreach",
+              "runtimeConfiguration": {
+                "concurrency": {
+                  "repetitions": 10
+                }
+              }
+            }
+          }
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "azureloganalyticsdatacollector": {
+                "connectionId": "[parameters('logAnalyticsConnectionId')]",
+                "connectionName": "azureloganalyticsdatacollector",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azureloganalyticsdatacollector')]"
+              },
+              "azuremonitorlogs": {
+                "connectionId": "[parameters('logAnalyticsQueryConnectionId')]",
+                "connectionName": "azuremonitorlogs",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azuremonitorlogs')]"
+              },
+              "microsoftgraph": {
+                "connectionId": "[parameters('microsoftGraphConnectionId')]",
+                "connectionName": "microsoftgraph",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/microsoftgraph')]"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[variables('entraConnectorName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[parameters('managedIdentityId')]": {}
+        }
+      },
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            },
+            "workspaceName": {
+              "defaultValue": "[parameters('ctiWorkspaceName')]",
+              "type": "String"
+            },
+            "graphApiUrl": {
+              "defaultValue": "[variables('graphApiBaseUrl')]",
+              "type": "String"
+            },
+            "maxRetryCount": {
+              "defaultValue": "[parameters('maxRetryCount')]",
+              "type": "Int"
+            }
+          },
+          "triggers": {
+            "Recurrence": {
+              "recurrence": {
+                "frequency": "Day",
+                "interval": 1
+              },
+              "type": "Recurrence"
+            }
+          },
+          "actions": {
+            "Get_High_Risk_IPs": {
+              "runAfter": {},
+              "type": "ApiConnection",
+              "inputs": {
+                "body": "CTI_IPIndicators_CL \n| where ConfidenceScore_d >= 90 and TimeGenerated > ago(1d) and isnotempty(IPAddress_s) \n| where \"Entra ID\" in (split(DistributionTargets_s, \", \")) \n| project IPAddress_s, ConfidenceScore_d, ThreatType_s, Description_s, IndicatorId_g, Action_s \n| limit 500",
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azuremonitorlogs']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/queryData",
+                "queries": {
+                  "resourcegroups": "[resourceGroup().name]",
+                  "resourcename": "@{parameters('workspaceName')}",
+                  "resourcetype": "Log Analytics Workspace",
+                  "subscriptions": "[subscription().subscriptionId]",
+                  "timerange": "Last day"
+                }
+              },
+              "retryPolicy": {
+                "type": "fixed",
+                "count": "@parameters('maxRetryCount')",
+                "interval": "PT10S"
+              }
+            },
+            "For_Each_Risk_IP": {
+              "foreach": "@body('Get_High_Risk_IPs').tables[0].rows",
+              "actions": {
+                "Create_Entra_Named_Location": {
+                  "runAfter": {},
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "body": {
+                      "@odata.type": "#microsoft.graph.ipNamedLocation",
+                      "displayName": "[concat('CTI Block - ', '@{take(replace(item()[0], ''.'', ''-''), 24)}')]",
+                      "isTrusted": false,
+                      "ipRanges": [
+                        {
+                          "@odata.type": "#microsoft.graph.iPv4CidrRange",
+                          "cidrAddress": "@{concat(item()[0], '/32')}"
+                        }
+                      ]
+                    },
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['microsoftgraph']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "path": "/v1.0/identity/conditionalAccess/namedLocations"
+                  },
+                  "retryPolicy": {
+                    "type": "fixed",
+                    "count": "@parameters('maxRetryCount')",
+                    "interval": "PT10S"
+                  }
+                },
+                "Log_Entra_Distribution_Success": {
+                  "runAfter": {
+                    "Create_Entra_Named_Location": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "body": "@{utcNow()},@{guid()},@{item()[4]},@{item()[0]},IP,Entra ID,AutoDistribute,Success,IP added to named location,@{utcNow()}",
+                    "headers": {
+                      "Log-Type": "CTI_DistributionHistory_CL"
+                    },
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['azureloganalyticsdatacollector']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "path": "/api/logs"
+                  }
+                }
+              },
+              "runAfter": {
+                "Get_High_Risk_IPs": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Foreach",
+              "runtimeConfiguration": {
+                "concurrency": {
+                  "repetitions": 10
+                }
+              }
+            }
+          }
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "azureloganalyticsdatacollector": {
+                "connectionId": "[parameters('logAnalyticsConnectionId')]",
+                "connectionName": "azureloganalyticsdatacollector",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azureloganalyticsdatacollector')]"
+              },
+              "azuremonitorlogs": {
+                "connectionId": "[parameters('logAnalyticsQueryConnectionId')]",
+                "connectionName": "azuremonitorlogs",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azuremonitorlogs')]"
+              },
+              "microsoftgraph": {
+                "connectionId": "[parameters('microsoftGraphConnectionId')]",
+                "connectionName": "microsoftgraph",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/microsoftgraph')]"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[variables('exoConnectorName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[parameters('managedIdentityId')]": {}
+        }
+      },
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            },
+            "workspaceName": {
+              "defaultValue": "[parameters('ctiWorkspaceName')]",
+              "type": "String"
+            },
+            "maxRetryCount": {
+              "defaultValue": "[parameters('maxRetryCount')]",
+              "type": "Int"
+            }
+          },
+          "triggers": {
+            "Recurrence": {
+              "recurrence": {
+                "frequency": "Hour",
+                "interval": 12
+              },
+              "type": "Recurrence"
+            }
+          },
+          "actions": {
+            "Get_High_Confidence_Indicators": {
+              "runAfter": {},
+              "type": "ApiConnection",
+              "inputs": {
+                "body": "CTI_ThreatIntelIndicator_CL \n| where Confidence_d >= 85 and Active_b == true\n| where TimeGenerated > ago(1d)\n| where \"Exchange Online\" in (split(DistributionTargets_s, \", \"))\n| where Type_s in (\"domain-name\", \"url\", \"email-addr\", \"ipv4-addr\")\n| project Type_s, Value_s, Confidence_d, ThreatType_s, Description_s, Action_s, IndicatorId_g\n| limit 500",
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azuremonitorlogs']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/queryData",
+                "queries": {
+                  "resourcegroups": "[resourceGroup().name]",
+                  "resourcename": "@{parameters('workspaceName')}",
+                  "resourcetype": "Log Analytics Workspace",
+                  "subscriptions": "[subscription().subscriptionId]",
+                  "timerange": "Last day"
+                }
+              },
+              "retryPolicy": {
+                "type": "fixed",
+                "count": "@parameters('maxRetryCount')",
+                "interval": "PT10S"
+              }
+            },
+            "For_Each_EXO_Indicator": {
+              "foreach": "@body('Get_High_Confidence_Indicators').tables[0].rows",
+              "actions": {
+                "Create_EXO_Allow_Block_List_Entry": {
+                  "runAfter": {},
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['microsoftgraph']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "path": "/v1.0/security/threatIntelligence/allowBlocklist",
+                    "body": {
+                      "value": "@{item()[1]}",
+                      "type": "@{if(equals(item()[0], 'ipv4-addr'), 'ip', if(equals(item()[0], 'domain-name'), 'domain', if(equals(item()[0], 'url'), 'url', 'sender')))}",
+                      "listType": "block",
+                      "description": "@{coalesce(item()[4], concat('Threat type: ', item()[3]))}",
+                      "expiresTime": "@{addDays(utcNow(), 30)}"
+                    }
+                  },
+                  "retryPolicy": {
+                    "type": "fixed",
+                    "count": "@parameters('maxRetryCount')",
+                    "interval": "PT10S"
+                  }
+                },
+                "Log_EXO_Distribution_Success": {
+                  "runAfter": {
+                    "Create_EXO_Allow_Block_List_Entry": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "body": "@{utcNow()},@{guid()},@{item()[6]},@{item()[1]},@{item()[0]},Exchange Online,AutoDistribute,Success,Indicator added to block list,@{utcNow()}",
+                    "headers": {
+                      "Log-Type": "CTI_DistributionHistory_CL"
+                    },
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['azureloganalyticsdatacollector']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "path": "/api/logs"
+                  }
+                }
+              },
+              "runAfter": {
+                "Get_High_Confidence_Indicators": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Foreach",
+              "runtimeConfiguration": {
+                "concurrency": {
+                  "repetitions": 10
+                }
+              }
+            }
+          }
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "azureloganalyticsdatacollector": {
+                "connectionId": "[parameters('logAnalyticsConnectionId')]",
+                "connectionName": "azureloganalyticsdatacollector",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azureloganalyticsdatacollector')]"
+              },
+              "azuremonitorlogs": {
+                "connectionId": "[parameters('logAnalyticsQueryConnectionId')]",
+                "connectionName": "azuremonitorlogs",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azuremonitorlogs')]"
+              },
+              "microsoftgraph": {
+                "connectionId": "[parameters('microsoftGraphConnectionId')]",
+                "connectionName": "microsoftgraph",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/microsoftgraph')]"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "name": "[concat(variables('defenderConnectorName'), '-diagnostics')]",
+      "scope": "[resourceId('Microsoft.Logic/workflows', variables('defenderConnectorName'))]",
+      "properties": {
+        "workspaceId": "[parameters('ctiWorkspaceId')]",
+        "logs": [
+          {
+            "category": "WorkflowRuntime",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Logic/workflows', variables('defenderConnectorName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "name": "[concat(variables('sentinelConnectorName'), '-diagnostics')]",
+      "scope": "[resourceId('Microsoft.Logic/workflows', variables('sentinelConnectorName'))]",
+      "properties": {
+        "workspaceId": "[parameters('ctiWorkspaceId')]",
+        "logs": [
+          {
+            "category": "WorkflowRuntime",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Logic/workflows', variables('sentinelConnectorName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "name": "[concat(variables('entraConnectorName'), '-diagnostics')]",
+      "scope": "[resourceId('Microsoft.Logic/workflows', variables('entraConnectorName'))]",
+      "properties": {
+        "workspaceId": "[parameters('ctiWorkspaceId')]",
+        "logs": [
+          {
+            "category": "WorkflowRuntime",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Logic/workflows', variables('entraConnectorName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "name": "[concat(variables('exoConnectorName'), '-diagnostics')]",
+      "scope": "[resourceId('Microsoft.Logic/workflows', variables('exoConnectorName'))]",
+      "properties": {
+        "workspaceId": "[parameters('ctiWorkspaceId')]",
+        "logs": [
+          {
+            "category": "WorkflowRuntime",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Logic/workflows', variables('exoConnectorName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "defenderConnectorResourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Logic/workflows', variables('defenderConnectorName'))]"
+    },
+    "defenderConnectorName": {
+      "type": "string",
+      "value": "[variables('defenderConnectorName')]"
+    },
+    "sentinelConnectorResourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Logic/workflows', variables('sentinelConnectorName'))]"
+    },
+    "sentinelConnectorName": {
+      "type": "string",
+      "value": "[variables('sentinelConnectorName')]"
+    },
+    "entraConnectorResourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Logic/workflows', variables('entraConnectorName'))]"
+    },
+    "entraConnectorName": {
+      "type": "string",
+      "value": "[variables('entraConnectorName')]"
+    },
+    "exoConnectorResourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Logic/workflows', variables('exoConnectorName'))]"
+    },
+    "exoConnectorName": {
+      "type": "string",
+      "value": "[variables('exoConnectorName')]"
+    }
+  }
+}
