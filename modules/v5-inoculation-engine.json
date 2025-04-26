@@ -56,6 +56,37 @@
         "description": "Name of Key Vault"
       }
     },
+    "emailNotificationAddress": {
+      "type": "string",
+      "defaultValue": "securityteam@contoso.com",
+      "metadata": {
+        "description": "Email address for approval notifications"
+      }
+    },
+    "sla": {
+      "type": "object",
+      "defaultValue": {
+        "approvalTimeMinutes": 120,
+        "criticalApprovalTimeMinutes": 30
+      },
+      "metadata": {
+        "description": "SLA configuration for approval workflows"
+      }
+    },
+    "enableSecurityCopilot": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable integration with Microsoft Security Copilot"
+      }
+    },
+    "dceNameForCopilot": {
+      "type": "string",
+      "defaultValue": "[concat(parameters('prefix'), '-dce-copilot-', parameters('environment'))]",
+      "metadata": {
+        "description": "Name for the Data Collection Endpoint for Security Copilot"
+      }
+    },
     "tags": {
       "type": "object",
       "metadata": {
@@ -82,18 +113,13 @@
       "metadata": {
         "description": "Maximum retry count for operations"
       }
-    },
-    "sla": {
-      "type": "object",
-      "metadata": {
-        "description": "SLA configuration"
-      }
     }
   },
   "variables": {
     "inoculationEngineName": "[concat(parameters('prefix'), '-InoculationEngine-', parameters('environment'))]",
     "approvalWorkflowName": "[concat(parameters('prefix'), '-IndicatorApproval-', parameters('environment'))]",
-    "dashboardName": "[concat(parameters('prefix'), '-InoculationEngine-Dashboard-', parameters('environment'))]"
+    "dashboardName": "[concat(parameters('prefix'), '-InoculationEngine-Dashboard-', parameters('environment'))]",
+    "office365ConnectionName": "[concat('office365-', parameters('environment'))]"
   },
   "resources": [
     {
@@ -738,6 +764,19 @@
       }
     },
     {
+      "type": "Microsoft.Web/connections",
+      "apiVersion": "2016-06-01",
+      "name": "[variables('office365ConnectionName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "displayName": "Office 365 Outlook",
+        "api": {
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/office365')]"
+        }
+      }
+    },
+    {
       "type": "Microsoft.Logic/workflows",
       "apiVersion": "2019-05-01",
       "name": "[variables('approvalWorkflowName')]",
@@ -774,6 +813,10 @@
             "criticalApprovalSla": {
               "defaultValue": "[parameters('sla').criticalApprovalTimeMinutes]",
               "type": "Int"
+            },
+            "emailNotificationAddress": {
+              "defaultValue": "[parameters('emailNotificationAddress')]",
+              "type": "String"
             }
           },
           "triggers": {
@@ -810,6 +853,9 @@
                     },
                     "requestTime": {
                       "type": "string"
+                    },
+                    "priority": {
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -840,17 +886,22 @@
                   {
                     "name": "isCritical",
                     "type": "boolean",
-                    "value": "@greaterOrEquals(triggerBody()?['confidenceScore'], 75)"
+                    "value": "@or(equals(triggerBody()?['priority'], 'Critical'), greaterOrEquals(triggerBody()?['confidenceScore'], 75))"
                   },
                   {
                     "name": "alertSummary",
                     "type": "string",
                     "value": "@{concat('Indicator Approval Required: ', coalesce(triggerBody()?['indicatorType'], 'Unknown'), ' - ', triggerBody()?['indicatorValue'])}"
+                  },
+                  {
+                    "name": "slaDeadline",
+                    "type": "string",
+                    "value": "@{addMinutes(utcNow(), if(variables('isCritical'), parameters('criticalApprovalSla'), parameters('approvalSla')))}"
                   }
                 ]
               }
             },
-            "Condition_Is_Critical": {
+            "Determine_Approval_Flow": {
               "runAfter": {
                 "Initialize_Variables": [
                   "Succeeded"
@@ -864,8 +915,43 @@
                 ]
               },
               "actions": {
-                "Send_Critical_Approval_Request": {
+                "Generate_Critical_Approval_Email": {
                   "runAfter": {},
+                  "type": "Compose",
+                  "inputs": {
+                    "Subject": "CRITICAL: Threat Intelligence Indicator Requires Approval",
+                    "Body": "A high-confidence threat indicator requires your immediate review and approval:\n\nType: @{variables('indicatorDetails').indicatorType}\nValue: @{variables('indicatorDetails').indicatorValue}\nThreat Type: @{variables('indicatorDetails').threatType}\nConfidence: @{variables('indicatorDetails').confidenceScore}\nTLP: @{variables('indicatorDetails').tlp}\n\nPlease review and approve/reject within @{parameters('criticalApprovalSla')} minutes. SLA Deadline: @{variables('slaDeadline')}\n\nApproval Link: https://portal.azure.com/#@tenant()/resource@{resourceGroup().id}/workflows/@{workflow().name}"
+                  }
+                },
+                "Send_Critical_Approval_Request": {
+                  "runAfter": {
+                    "Generate_Critical_Approval_Email": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['office365']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "body": {
+                      "To": "@parameters('emailNotificationAddress')",
+                      "Subject": "@{outputs('Generate_Critical_Approval_Email').Subject}",
+                      "Body": "<p><strong style='color:red'>@{outputs('Generate_Critical_Approval_Email').Body}</strong></p>",
+                      "Importance": "High"
+                    },
+                    "path": "/v2/Mail"
+                  }
+                },
+                "Log_Critical_Approval_Request": {
+                  "runAfter": {
+                    "Send_Critical_Approval_Request": [
+                      "Succeeded"
+                    ]
+                  },
                   "type": "ApiConnection",
                   "inputs": {
                     "body": "@{utcNow()},@{guid()},@{variables('indicatorDetails').indicatorId},@{variables('indicatorDetails').indicatorValue},@{variables('indicatorDetails').indicatorType},ApprovalWorkflow,CriticalApproval,Waiting,Critical approval requested (SLA: @{parameters('criticalApprovalSla')} min),@{utcNow()}",
@@ -884,8 +970,43 @@
               },
               "else": {
                 "actions": {
-                  "Send_Standard_Approval_Request": {
+                  "Generate_Standard_Approval_Email": {
                     "runAfter": {},
+                    "type": "Compose",
+                    "inputs": {
+                      "Subject": "Threat Intelligence Indicator Requires Approval",
+                      "Body": "A threat indicator requires your review and approval:\n\nType: @{variables('indicatorDetails').indicatorType}\nValue: @{variables('indicatorDetails').indicatorValue}\nThreat Type: @{variables('indicatorDetails').threatType}\nConfidence: @{variables('indicatorDetails').confidenceScore}\nTLP: @{variables('indicatorDetails').tlp}\n\nPlease review and approve/reject within @{parameters('approvalSla')} minutes. SLA Deadline: @{variables('slaDeadline')}\n\nApproval Link: https://portal.azure.com/#@tenant()/resource@{resourceGroup().id}/workflows/@{workflow().name}"
+                    }
+                  },
+                  "Send_Standard_Approval_Request": {
+                    "runAfter": {
+                      "Generate_Standard_Approval_Email": [
+                        "Succeeded"
+                      ]
+                    },
+                    "type": "ApiConnection",
+                    "inputs": {
+                      "host": {
+                        "connection": {
+                          "name": "@parameters('$connections')['office365']['connectionId']"
+                        }
+                      },
+                      "method": "post",
+                      "body": {
+                        "To": "@parameters('emailNotificationAddress')",
+                        "Subject": "@{outputs('Generate_Standard_Approval_Email').Subject}",
+                        "Body": "<p>@{outputs('Generate_Standard_Approval_Email').Body}</p>",
+                        "Importance": "Normal"
+                      },
+                      "path": "/v2/Mail"
+                    }
+                  },
+                  "Log_Standard_Approval_Request": {
+                    "runAfter": {
+                      "Send_Standard_Approval_Request": [
+                        "Succeeded"
+                      ]
+                    },
                     "type": "ApiConnection",
                     "inputs": {
                       "body": "@{utcNow()},@{guid()},@{variables('indicatorDetails').indicatorId},@{variables('indicatorDetails').indicatorValue},@{variables('indicatorDetails').indicatorType},ApprovalWorkflow,StandardApproval,Waiting,Standard approval requested (SLA: @{parameters('approvalSla')} min),@{utcNow()}",
@@ -904,263 +1025,178 @@
                 }
               }
             },
-            "Wait_for_Approval_Decision": {
+            "Wait_For_Approval_Decision": {
               "runAfter": {
-                "Condition_Is_Critical": [
+                "Determine_Approval_Flow": [
                   "Succeeded"
                 ]
               },
-              "type": "Wait",
-              "inputs": {
-                "interval": {
-                  "count": 1,
-                  "unit": "Minute"
-                }
-              }
-            },
-            "Get_Approval_Status": {
-              "runAfter": {
-                "Wait_for_Approval_Decision": [
-                  "Succeeded"
-                ]
-              },
-              "type": "ApiConnection",
-              "inputs": {
-                "body": "CTI_DistributionHistory_CL \n| where IndicatorId_g == \"@{variables('indicatorDetails').indicatorId}\"\n| where Status_s in (\"Approved\", \"Rejected\")\n| where TimeGenerated > ago(1h)\n| order by TimeGenerated desc\n| limit 1",
-                "host": {
-                  "connection": {
-                    "name": "@parameters('$connections')['azuremonitorlogs']['connectionId']"
-                  }
-                },
-                "method": "post",
-                "path": "/queryData",
-                "queries": {
-                  "resourcegroups": "[resourceGroup().name]",
-                  "resourcename": "@{parameters('workspaceName')}",
-                  "resourcetype": "Log Analytics Workspace",
-                  "subscriptions": "[subscription().subscriptionId]",
-                  "timerange": "Last hour"
-                }
-              }
-            },
-            "Check_If_Decision_Made": {
-              "runAfter": {
-                "Get_Approval_Status": [
-                  "Succeeded"
-                ]
-              },
-              "type": "If",
+              "type": "Until",
               "expression": {
-                "greater": [
-                  "@length(body('Get_Approval_Status').tables[0].rows)",
-                  0
+                "or": [
+                  {
+                    "not": {
+                      "equals": [
+                        "@variables('approvalResult')",
+                        "Pending"
+                      ]
+                    }
+                  },
+                  {
+                    "greater": [
+                      "@utcNow()",
+                      "@variables('slaDeadline')"
+                    ]
+                  }
                 ]
+              },
+              "limit": {
+                "count": 60,
+                "timeout": "PT2H"
               },
               "actions": {
-                "Set_Approval_Result": {
+                "Delay_Before_Check": {
                   "runAfter": {},
-                  "type": "SetVariable",
+                  "type": "Wait",
                   "inputs": {
-                    "name": "approvalResult",
-                    "value": "@body('Get_Approval_Status').tables[0].rows[0][7]"
+                    "interval": {
+                      "count": 1,
+                      "unit": "Minute"
+                    }
                   }
-                }
-              },
-              "else": {
-                "actions": {
-                  "Check_SLA_Exceeded": {
-                    "runAfter": {},
-                    "type": "If",
-                    "expression": {
-                      "greater": [
-                        "@ticks(utcNow())",
-                        "@add(ticks(variables('indicatorDetails').requestTime), mul(mul(variables('isCritical') ? parameters('criticalApprovalSla') : parameters('approvalSla'), 60), 10000000))"
-                      ]
-                    },
-                    "actions": {
-                      "Auto_Approve_Based_on_SLA": {
-                        "runAfter": {},
-                        "type": "SetVariable",
-                        "inputs": {
-                          "name": "approvalResult",
-                          "value": "Approved"
-                        }
-                      },
-                      "Log_SLA_Based_Auto_Approval": {
-                        "runAfter": {
-                          "Auto_Approve_Based_on_SLA": [
-                            "Succeeded"
-                          ]
-                        },
-                        "type": "ApiConnection",
-                        "inputs": {
-                          "body": "@{utcNow()},@{guid()},@{variables('indicatorDetails').indicatorId},@{variables('indicatorDetails').indicatorValue},@{variables('indicatorDetails').indicatorType},ApprovalWorkflow,Approved,Success,Auto-approved due to exceeded SLA,@{utcNow()}",
-                          "headers": {
-                            "Log-Type": "CTI_DistributionHistory_CL"
-                          },
-                          "host": {
-                            "connection": {
-                              "name": "@parameters('$connections')['azureloganalyticsdatacollector']['connectionId']"
-                            }
-                          },
-                          "method": "post",
-                          "path": "/api/logs"
-                        }
+                },
+                "Check_Approval_Status": {
+                  "runAfter": {
+                    "Delay_Before_Check": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "body": "CTI_DistributionHistory_CL \n| where IndicatorId_g == \"@{variables('indicatorDetails').indicatorId}\"\n| where Status_s in (\"Approved\", \"Rejected\")\n| where TimeGenerated > ago(1h)\n| order by TimeGenerated desc\n| limit 1",
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['azuremonitorlogs']['connectionId']"
                       }
                     },
-                    "else": {
-                      "actions": {
-                        "Run_Until_Approval_Or_SLA": {
-                          "runAfter": {},
-                          "type": "Until",
-                          "expression": {
-                            "or": [
-                              {
-                                "not": {
-                                  "equals": [
-                                    "@variables('approvalResult')",
-                                    "Pending"
-                                  ]
-                                }
-                              },
-                              {
-                                "greater": [
-                                  "@ticks(utcNow())",
-                                  "@add(ticks(variables('indicatorDetails').requestTime), mul(mul(variables('isCritical') ? parameters('criticalApprovalSla') : parameters('approvalSla'), 60), 10000000))"
-                                ]
-                              }
-                            ]
-                          },
-                          "limit": {
-                            "count": 60,
-                            "timeout": "PT1H"
-                          },
-                          "actions": {
-                            "Wait_For_Response": {
-                              "runAfter": {},
-                              "type": "Wait",
-                              "inputs": {
-                                "interval": {
-                                  "count": 1,
-                                  "unit": "Minute"
-                                }
-                              }
-                            },
-                            "Check_For_Decision": {
-                              "runAfter": {
-                                "Wait_For_Response": [
-                                  "Succeeded"
-                                ]
-                              },
-                              "type": "ApiConnection",
-                              "inputs": {
-                                "body": "CTI_DistributionHistory_CL \n| where IndicatorId_g == \"@{variables('indicatorDetails').indicatorId}\"\n| where Status_s in (\"Approved\", \"Rejected\")\n| where TimeGenerated > ago(1h)\n| order by TimeGenerated desc\n| limit 1",
-                                "host": {
-                                  "connection": {
-                                    "name": "@parameters('$connections')['azuremonitorlogs']['connectionId']"
-                                  }
-                                },
-                                "method": "post",
-                                "path": "/queryData",
-                                "queries": {
-                                  "resourcegroups": "[resourceGroup().name]",
-                                  "resourcename": "@{parameters('workspaceName')}",
-                                  "resourcetype": "Log Analytics Workspace",
-                                  "subscriptions": "[subscription().subscriptionId]",
-                                  "timerange": "Last hour"
-                                }
-                              }
-                            },
-                            "Process_Decision": {
-                              "runAfter": {
-                                "Check_For_Decision": [
-                                  "Succeeded"
-                                ]
-                              },
-                              "type": "If",
-                              "expression": {
-                                "greater": [
-                                  "@length(body('Check_For_Decision').tables[0].rows)",
-                                  0
-                                ]
-                              },
-                              "actions": {
-                                "Set_Decision_Result": {
-                                  "runAfter": {},
-                                  "type": "SetVariable",
-                                  "inputs": {
-                                    "name": "approvalResult",
-                                    "value": "@body('Check_For_Decision').tables[0].rows[0][7]"
-                                  }
-                                }
-                              }
-                            }
+                    "method": "post",
+                    "path": "/queryData",
+                    "queries": {
+                      "resourcegroups": "[resourceGroup().name]",
+                      "resourcename": "@{parameters('workspaceName')}",
+                      "resourcetype": "Log Analytics Workspace",
+                      "subscriptions": "[subscription().subscriptionId]",
+                      "timerange": "Last hour"
+                    }
+                  }
+                },
+                "Process_Decision": {
+                  "runAfter": {
+                    "Check_Approval_Status": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "If",
+                  "expression": {
+                    "greater": [
+                      "@length(body('Check_Approval_Status').tables[0].rows)",
+                      0
+                    ]
+                  },
+                  "actions": {
+                    "Set_Decision_Result": {
+                      "runAfter": {},
+                      "type": "SetVariable",
+                      "inputs": {
+                        "name": "approvalResult",
+                        "value": "@body('Check_Approval_Status').tables[0].rows[0][7]"
+                      }
+                    }
+                  }
+                },
+                "Check_SLA_Deadline": {
+                  "runAfter": {
+                    "Process_Decision": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "If",
+                  "expression": {
+                    "and": [
+                      {
+                        "equals": [
+                          "@variables('approvalResult')",
+                          "Pending"
+                        ]
+                      },
+                      {
+                        "greater": [
+                          "@utcNow()",
+                          "@variables('slaDeadline')"
+                        ]
+                      }
+                    ]
+                  },
+                  "actions": {
+                    "Set_Auto_Approval": {
+                      "runAfter": {},
+                      "type": "SetVariable",
+                      "inputs": {
+                        "name": "approvalResult",
+                        "value": "Approved"
+                      }
+                    },
+                    "Log_SLA_Auto_Approval": {
+                      "runAfter": {
+                        "Set_Auto_Approval": [
+                          "Succeeded"
+                        ]
+                      },
+                      "type": "ApiConnection",
+                      "inputs": {
+                        "body": "@{utcNow()},@{guid()},@{variables('indicatorDetails').indicatorId},@{variables('indicatorDetails').indicatorValue},@{variables('indicatorDetails').indicatorType},ApprovalWorkflow,Approved,Success,Auto-approved due to exceeded SLA,@{utcNow()}",
+                        "headers": {
+                          "Log-Type": "CTI_DistributionHistory_CL"
+                        },
+                        "host": {
+                          "connection": {
+                            "name": "@parameters('$connections')['azureloganalyticsdatacollector']['connectionId']"
                           }
                         },
-                        "Check_Final_SLA_Status": {
-                          "runAfter": {
-                            "Run_Until_Approval_Or_SLA": [
-                              "Succeeded"
-                            ]
-                          },
-                          "type": "If",
-                          "expression": {
-                            "and": [
-                              {
-                                "equals": [
-                                  "@variables('approvalResult')",
-                                  "Pending"
-                                ]
-                              },
-                              {
-                                "greater": [
-                                  "@ticks(utcNow())",
-                                  "@add(ticks(variables('indicatorDetails').requestTime), mul(mul(variables('isCritical') ? parameters('criticalApprovalSla') : parameters('approvalSla'), 60), 10000000))"
-                                ]
-                              }
-                            ]
-                          },
-                          "actions": {
-                            "Set_Auto_Approval": {
-                              "runAfter": {},
-                              "type": "SetVariable",
-                              "inputs": {
-                                "name": "approvalResult",
-                                "value": "Approved"
-                              }
-                            },
-                            "Log_Final_SLA_Auto_Approval": {
-                              "runAfter": {
-                                "Set_Auto_Approval": [
-                                  "Succeeded"
-                                ]
-                              },
-                              "type": "ApiConnection",
-                              "inputs": {
-                                "body": "@{utcNow()},@{guid()},@{variables('indicatorDetails').indicatorId},@{variables('indicatorDetails').indicatorValue},@{variables('indicatorDetails').indicatorType},ApprovalWorkflow,Approved,Success,Auto-approved due to exceeded SLA (final check),@{utcNow()}",
-                                "headers": {
-                                  "Log-Type": "CTI_DistributionHistory_CL"
-                                },
-                                "host": {
-                                  "connection": {
-                                    "name": "@parameters('$connections')['azureloganalyticsdatacollector']['connectionId']"
-                                  }
-                                },
-                                "method": "post",
-                                "path": "/api/logs"
-                              }
-                            }
+                        "method": "post",
+                        "path": "/api/logs"
+                      }
+                    },
+                    "Send_SLA_Auto_Approval_Notification": {
+                      "runAfter": {
+                        "Log_SLA_Auto_Approval": [
+                          "Succeeded"
+                        ]
+                      },
+                      "type": "ApiConnection",
+                      "inputs": {
+                        "host": {
+                          "connection": {
+                            "name": "@parameters('$connections')['office365']['connectionId']"
                           }
-                        }
+                        },
+                        "method": "post",
+                        "body": {
+                          "To": "@parameters('emailNotificationAddress')",
+                          "Subject": "SLA Exceeded: Indicator Auto-Approved",
+                          "Body": "<p>The following indicator has been automatically approved due to SLA timeout:</p><p>Type: @{variables('indicatorDetails').indicatorType}<br>Value: @{variables('indicatorDetails').indicatorValue}<br>Confidence: @{variables('indicatorDetails').confidenceScore}</p>",
+                          "Importance": "Normal"
+                        },
+                        "path": "/v2/Mail"
                       }
                     }
                   }
                 }
               }
             },
-            "Process_Based_On_Result": {
+            "Process_Final_Decision": {
               "runAfter": {
-                "Check_If_Decision_Made": [
+                "Wait_For_Approval_Decision": [
                   "Succeeded"
                 ]
               },
@@ -1201,6 +1237,34 @@
                           "confidence": "@variables('indicatorDetails').confidenceScore",
                           "tlp": "@variables('indicatorDetails').tlp"
                         }
+                      },
+                      "retryPolicy": {
+                        "type": "fixed",
+                        "count": "@parameters('maxRetryCount')",
+                        "interval": "PT10S"
+                      }
+                    },
+                    "Send_Approval_Success_Notification": {
+                      "runAfter": {
+                        "Submit_For_Distribution": [
+                          "Succeeded"
+                        ]
+                      },
+                      "type": "ApiConnection",
+                      "inputs": {
+                        "host": {
+                          "connection": {
+                            "name": "@parameters('$connections')['office365']['connectionId']"
+                          }
+                        },
+                        "method": "post",
+                        "body": {
+                          "To": "@parameters('emailNotificationAddress')",
+                          "Subject": "Indicator Approved and Distributed",
+                          "Body": "<p>The following indicator has been approved and distributed successfully:</p><p>Type: @{variables('indicatorDetails').indicatorType}<br>Value: @{variables('indicatorDetails').indicatorValue}<br>Confidence: @{variables('indicatorDetails').confidenceScore}</p>",
+                          "Importance": "Normal"
+                        },
+                        "path": "/v2/Mail"
                       }
                     }
                   }
@@ -1219,6 +1283,29 @@
                         },
                         "method": "post",
                         "path": "/api/logs"
+                      }
+                    },
+                    "Send_Rejection_Notification": {
+                      "runAfter": {
+                        "Update_Indicator_Status_Rejected": [
+                          "Succeeded"
+                        ]
+                      },
+                      "type": "ApiConnection",
+                      "inputs": {
+                        "host": {
+                          "connection": {
+                            "name": "@parameters('$connections')['office365']['connectionId']"
+                          }
+                        },
+                        "method": "post",
+                        "body": {
+                          "To": "@parameters('emailNotificationAddress')",
+                          "Subject": "Indicator Rejected",
+                          "Body": "<p>The following indicator has been rejected:</p><p>Type: @{variables('indicatorDetails').indicatorType}<br>Value: @{variables('indicatorDetails').indicatorValue}<br>Confidence: @{variables('indicatorDetails').confidenceScore}</p>",
+                          "Importance": "Normal"
+                        },
+                        "path": "/v2/Mail"
                       }
                     }
                   }
@@ -1248,7 +1335,7 @@
             },
             "Response": {
               "runAfter": {
-                "Process_Based_On_Result": [
+                "Process_Final_Decision": [
                   "Succeeded"
                 ]
               },
@@ -1277,11 +1364,19 @@
                 "connectionId": "[parameters('logAnalyticsQueryConnectionId')]",
                 "connectionName": "azuremonitorlogs",
                 "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azuremonitorlogs')]"
+              },
+              "office365": {
+                "connectionId": "[resourceId('Microsoft.Web/connections', variables('office365ConnectionName'))]",
+                "connectionName": "office365",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/office365')]"
               }
             }
           }
         }
-      }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/connections', variables('office365ConnectionName'))]"
+      ]
     },
     {
       "type": "Microsoft.Portal/dashboards",
@@ -1298,6 +1393,28 @@
                 "position": {
                   "x": 0,
                   "y": 0,
+                  "colSpan": 18,
+                  "rowSpan": 1
+                },
+                "metadata": {
+                  "inputs": [],
+                  "type": "Extension/HubsExtension/PartType/MarkdownPart",
+                  "settings": {
+                    "content": {
+                      "settings": {
+                        "content": "# Central Threat Intelligence v5.0 - Operational Dashboard\nThis dashboard provides real-time monitoring of the threat intelligence processing pipeline, distribution status, and system health.",
+                        "title": "",
+                        "subtitle": "",
+                        "markdownSource": 1
+                      }
+                    }
+                  }
+                }
+              },
+              "1": {
+                "position": {
+                  "x": 0,
+                  "y": 1,
                   "colSpan": 6,
                   "rowSpan": 4
                 },
@@ -1367,7 +1484,505 @@
                     {
                       "name": "PartTitle",
                       "isOptional": true,
-                      "value": "Indicator Processing Status"
+                      "value": "Indicator Processing Metrics"
+                    }
+                  ],
+                  "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+                  "settings": {}
+                }
+              },
+              "2": {
+                "position": {
+                  "x": 6,
+                  "y": 1,
+                  "colSpan": 6,
+                  "rowSpan": 4
+                },
+                "metadata": {
+                  "inputs": [
+                    {
+                      "name": "resourceTypeMode",
+                      "isOptional": true,
+                      "value": "workspace"
+                    },
+                    {
+                      "name": "ComponentId",
+                      "isOptional": true,
+                      "value": {
+                        "SubscriptionId": "[subscription().subscriptionId]",
+                        "ResourceGroup": "[resourceGroup().name]",
+                        "Name": "[parameters('ctiWorkspaceName')]",
+                        "ResourceId": "[parameters('ctiWorkspaceId')]"
+                      }
+                    },
+                    {
+                      "name": "Query",
+                      "isOptional": true,
+                      "value": "CTI_TelemetryData_CL | where TimeGenerated > ago(24h) | summarize SuccessRate = (sum(Column2) * 100.0 / sum(Column1)) by bin(TimeGenerated, 1h) | render timechart"
+                    },
+                    {
+                      "name": "TimeRange",
+                      "isOptional": true,
+                      "value": "P1D"
+                    },
+                    {
+                      "name": "Version",
+                      "isOptional": true,
+                      "value": "1.0"
+                    },
+                    {
+                      "name": "PartId",
+                      "isOptional": true,
+                      "value": "Success Rate Trend"
+                    },
+                    {
+                      "name": "PartTitle",
+                      "isOptional": true,
+                      "value": "Distribution Success Rate (%)"
+                    }
+                  ],
+                  "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+                  "settings": {}
+                }
+              },
+              "3": {
+                "position": {
+                  "x": 12,
+                  "y": 1,
+                  "colSpan": 6,
+                  "rowSpan": 4
+                },
+                "metadata": {
+                  "inputs": [
+                    {
+                      "name": "resourceTypeMode",
+                      "isOptional": true,
+                      "value": "workspace"
+                    },
+                    {
+                      "name": "ComponentId",
+                      "isOptional": true,
+                      "value": {
+                        "SubscriptionId": "[subscription().subscriptionId]",
+                        "ResourceGroup": "[resourceGroup().name]",
+                        "Name": "[parameters('ctiWorkspaceName')]",
+                        "ResourceId": "[parameters('ctiWorkspaceId')]"
+                      }
+                    },
+                    {
+                      "name": "Query",
+                      "isOptional": true,
+                      "value": "CTI_ProcessingErrors_CL | where TimeGenerated > ago(24h) | summarize Count=count() by ErrorType_s | top 5 by Count desc | render piechart"
+                    },
+                    {
+                      "name": "TimeRange",
+                      "isOptional": true,
+                      "value": "P1D"
+                    },
+                    {
+                      "name": "Version",
+                      "isOptional": true,
+                      "value": "1.0"
+                    },
+                    {
+                      "name": "PartId",
+                      "isOptional": true,
+                      "value": "Top Error Types"
+                    },
+                    {
+                      "name": "PartTitle",
+                      "isOptional": true,
+                      "value": "Top Error Types (Last 24h)"
+                    }
+                  ],
+                  "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+                  "settings": {}
+                }
+              },
+              "4": {
+                "position": {
+                  "x": 0,
+                  "y": 5,
+                  "colSpan": 18,
+                  "rowSpan": 1
+                },
+                "metadata": {
+                  "inputs": [],
+                  "type": "Extension/HubsExtension/PartType/MarkdownPart",
+                  "settings": {
+                    "content": {
+                      "settings": {
+                        "content": "## System Health",
+                        "title": "",
+                        "subtitle": "",
+                        "markdownSource": 1
+                      }
+                    }
+                  }
+                }
+              },
+              "5": {
+                "position": {
+                  "x": 0,
+                  "y": 6,
+                  "colSpan": 8,
+                  "rowSpan": 3
+                },
+                "metadata": {
+                  "inputs": [
+                    {
+                      "name": "resourceTypeMode",
+                      "isOptional": true,
+                      "value": "workspace"
+                    },
+                    {
+                      "name": "ComponentId",
+                      "isOptional": true,
+                      "value": {
+                        "SubscriptionId": "[subscription().subscriptionId]",
+                        "ResourceGroup": "[resourceGroup().name]",
+                        "Name": "[parameters('ctiWorkspaceName')]",
+                        "ResourceId": "[parameters('ctiWorkspaceId')]"
+                      }
+                    },
+                    {
+                      "name": "Query",
+                      "isOptional": true,
+                      "value": "// System health status\r\n// Logic App run status\r\nlet logicApps = dynamic([\"CTI-TAXII2-Connector\", \"CTI-DefenderXDR-Connector\", \"CTI-MDTI-Connector\", \"CTI-EntraID-Connector\", \"CTI-ExchangeOnline-Connector\", \"CTI-SecurityCopilot-Connector\", \"CTI-Housekeeping\", \"CTI-ThreatFeedSync\"]);\r\n\r\n// Get Logic App runs status\r\nlet workflowRuns = union \r\n    // Get recent workflow runs\r\n    (workspace(\"*\").WorkflowRuntime\r\n    | where TimeGenerated > ago(24h)\r\n    | where ResourceId contains \"Microsoft.Logic/workflows\" and Status in (\"Failed\", \"Succeeded\")\r\n    | extend ResourceName = tostring(split(ResourceId, \"/\")[8])\r\n    | extend isLogicApp = indexof(logicApps, ResourceName) != -1\r\n    | where isLogicApp\r\n    | project TimeGenerated, ResourceName, Status, startTime_t);\r\n\r\n// Process workflow status\r\nworkflowRuns\r\n| summarize LastRunStatus = arg_max(TimeGenerated, Status) by ResourceName\r\n| extend Status = iff(LastRunStatus == \"Failed\", \"Failed\", \"Healthy\")\r\n| project Component = ResourceName, Status\r\n| union (\r\n    // Add a row for workspace status - always healthy if query runs\r\n    datatable(Component:string, Status:string)[ \"Log Analytics Workspace\", \"Healthy\"]\r\n)\r\n| order by Component asc"
+                    },
+                    {
+                      "name": "TimeRange",
+                      "isOptional": true,
+                      "value": "P1D"
+                    },
+                    {
+                      "name": "Version",
+                      "isOptional": true,
+                      "value": "1.0"
+                    },
+                    {
+                      "name": "PartId",
+                      "isOptional": true,
+                      "value": "System Component Health"
+                    },
+                    {
+                      "name": "PartTitle",
+                      "isOptional": true,
+                      "value": "System Component Health"
+                    }
+                  ],
+                  "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+                  "settings": {}
+                }
+              },
+              "6": {
+                "position": {
+                  "x": 8,
+                  "y": 6,
+                  "colSpan": 10,
+                  "rowSpan": 3
+                },
+                "metadata": {
+                  "inputs": [
+                    {
+                      "name": "resourceTypeMode",
+                      "isOptional": true,
+                      "value": "workspace"
+                    },
+                    {
+                      "name": "ComponentId",
+                      "isOptional": true,
+                      "value": {
+                        "SubscriptionId": "[subscription().subscriptionId]",
+                        "ResourceGroup": "[resourceGroup().name]",
+                        "Name": "[parameters('ctiWorkspaceName')]",
+                        "ResourceId": "[parameters('ctiWorkspaceId')]"
+                      }
+                    },
+                    {
+                      "name": "Query",
+                      "isOptional": true,
+                      "value": "// Logic App run history\r\nlet logicApps = dynamic([\"CTI-TAXII2-Connector\", \"CTI-DefenderXDR-Connector\", \"CTI-MDTI-Connector\", \"CTI-EntraID-Connector\", \"CTI-ExchangeOnline-Connector\", \"CTI-SecurityCopilot-Connector\", \"CTI-Housekeeping\", \"CTI-ThreatFeedSync\"]);\r\n\r\n// Get Logic App runs\r\nworkspace(\"*\").WorkflowRuntime\r\n| where TimeGenerated > ago(24h)\r\n| where ResourceId contains \"Microsoft.Logic/workflows\"\r\n| extend ResourceName = tostring(split(ResourceId, \"/\")[8])\r\n| extend isLogicApp = indexof(logicApps, ResourceName) != -1\r\n| where isLogicApp\r\n| project TimeGenerated, Connector = ResourceName, Status, RunId = WorkflowRunId\r\n| order by TimeGenerated desc\r\n| take 10"
+                    },
+                    {
+                      "name": "TimeRange",
+                      "isOptional": true,
+                      "value": "P1D"
+                    },
+                    {
+                      "name": "Version",
+                      "isOptional": true,
+                      "value": "1.0"
+                    },
+                    {
+                      "name": "PartId",
+                      "isOptional": true,
+                      "value": "Recent Connector Runs"
+                    },
+                    {
+                      "name": "PartTitle",
+                      "isOptional": true,
+                      "value": "Recent Connector Runs"
+                    }
+                  ],
+                  "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+                  "settings": {}
+                }
+              },
+              "7": {
+                "position": {
+                  "x": 0,
+                  "y": 9,
+                  "colSpan": 18,
+                  "rowSpan": 1
+                },
+                "metadata": {
+                  "inputs": [],
+                  "type": "Extension/HubsExtension/PartType/MarkdownPart",
+                  "settings": {
+                    "content": {
+                      "settings": {
+                        "content": "## Distribution Status",
+                        "title": "",
+                        "subtitle": "",
+                        "markdownSource": 1
+                      }
+                    }
+                  }
+                }
+              },
+              "8": {
+                "position": {
+                  "x": 0,
+                  "y": 10,
+                  "colSpan": 9,
+                  "rowSpan": 4
+                },
+                "metadata": {
+                  "inputs": [
+                    {
+                      "name": "resourceTypeMode",
+                      "isOptional": true,
+                      "value": "workspace"
+                    },
+                    {
+                      "name": "ComponentId",
+                      "isOptional": true,
+                      "value": {
+                        "SubscriptionId": "[subscription().subscriptionId]",
+                        "ResourceGroup": "[resourceGroup().name]",
+                        "Name": "[parameters('ctiWorkspaceName')]",
+                        "ResourceId": "[parameters('ctiWorkspaceId')]"
+                      }
+                    },
+                    {
+                      "name": "Query",
+                      "isOptional": true,
+                      "value": "// Distribution of indicators by target product\r\nunion \r\n(CTI_IPIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"IP\", Value = IPAddress_s, Distribution = split(DistributionTargets_s, \", \")),\r\n(CTI_DomainIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"Domain\", Value = Domain_s, Distribution = split(DistributionTargets_s, \", \")),\r\n(CTI_URLIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"URL\", Value = URL_s, Distribution = split(DistributionTargets_s, \", \")),\r\n(CTI_FileHashIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"File Hash\", Value = coalesce(SHA256_s, SHA1_s, MD5_s), Distribution = split(DistributionTargets_s, \", \"))\r\n| mv-expand Target = Distribution\r\n| summarize Count = count() by tostring(Target), Type\r\n| where isnotempty(Target)\r\n| order by Count desc"
+                    },
+                    {
+                      "name": "TimeRange",
+                      "isOptional": true,
+                      "value": "P1D"
+                    },
+                    {
+                      "name": "Version",
+                      "isOptional": true,
+                      "value": "1.0"
+                    },
+                    {
+                      "name": "PartId",
+                      "isOptional": true,
+                      "value": "Distribution by Target"
+                    },
+                    {
+                      "name": "PartTitle",
+                      "isOptional": true,
+                      "value": "Distribution by Target Platform"
+                    }
+                  ],
+                  "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+                  "settings": {}
+                }
+              },
+              "9": {
+                "position": {
+                  "x": 9,
+                  "y": 10,
+                  "colSpan": 9,
+                  "rowSpan": 4
+                },
+                "metadata": {
+                  "inputs": [
+                    {
+                      "name": "resourceTypeMode",
+                      "isOptional": true,
+                      "value": "workspace"
+                    },
+                    {
+                      "name": "ComponentId",
+                      "isOptional": true,
+                      "value": {
+                        "SubscriptionId": "[subscription().subscriptionId]",
+                        "ResourceGroup": "[resourceGroup().name]",
+                        "Name": "[parameters('ctiWorkspaceName')]",
+                        "ResourceId": "[parameters('ctiWorkspaceId')]"
+                      }
+                    },
+                    {
+                      "name": "Query",
+                      "isOptional": true,
+                      "value": "// Distribution history\r\nCTI_DistributionHistory_CL\r\n| where TimeGenerated > ago(24h)\r\n| summarize SuccessCount = countif(Status_s == \"Success\"), ErrorCount = countif(Status_s == \"Error\"), WaitingCount = countif(Status_s == \"Waiting\") by TargetSystem_s\r\n| extend TotalAttempts = SuccessCount + ErrorCount + WaitingCount\r\n| project TargetSystem_s, SuccessCount, ErrorCount, WaitingCount, TotalAttempts, SuccessRate = iff(TotalAttempts > 0, 100.0 * SuccessCount / TotalAttempts, 0.0)\r\n| order by TotalAttempts desc"
+                    },
+                    {
+                      "name": "TimeRange",
+                      "isOptional": true,
+                      "value": "P1D"
+                    },
+                    {
+                      "name": "Version",
+                      "isOptional": true,
+                      "value": "1.0"
+                    },
+                    {
+                      "name": "PartId",
+                      "isOptional": true,
+                      "value": "Distribution History"
+                    },
+                    {
+                      "name": "PartTitle",
+                      "isOptional": true,
+                      "value": "Distribution Success Rate by Target (24h)"
+                    }
+                  ],
+                  "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+                  "settings": {}
+                }
+              },
+              "10": {
+                "position": {
+                  "x": 0,
+                  "y": 14,
+                  "colSpan": 18,
+                  "rowSpan": 1
+                },
+                "metadata": {
+                  "inputs": [],
+                  "type": "Extension/HubsExtension/PartType/MarkdownPart",
+                  "settings": {
+                    "content": {
+                      "settings": {
+                        "content": "## Approval Workflow Status",
+                        "title": "",
+                        "subtitle": "",
+                        "markdownSource": 1
+                      }
+                    }
+                  }
+                }
+              },
+              "11": {
+                "position": {
+                  "x": 0,
+                  "y": 15,
+                  "colSpan": 6,
+                  "rowSpan": 4
+                },
+                "metadata": {
+                  "inputs": [
+                    {
+                      "name": "resourceTypeMode",
+                      "isOptional": true,
+                      "value": "workspace"
+                    },
+                    {
+                      "name": "ComponentId",
+                      "isOptional": true,
+                      "value": {
+                        "SubscriptionId": "[subscription().subscriptionId]",
+                        "ResourceGroup": "[resourceGroup().name]",
+                        "Name": "[parameters('ctiWorkspaceName')]",
+                        "ResourceId": "[parameters('ctiWorkspaceId')]"
+                      }
+                    },
+                    {
+                      "name": "Query",
+                      "isOptional": true,
+                      "value": "// Approval workflow stats\r\nCTI_DistributionHistory_CL\r\n| where TimeGenerated > ago(7d) and DistributionType_s has \"Approval\"\r\n| extend ApprovalType = iff(DistributionType_s has \"Critical\", \"Critical\", \"Standard\")\r\n| summarize count() by Status_s, ApprovalType\r\n| extend Status = case(\r\n    Status_s == \"Waiting\", \"Pending\",\r\n    Status_s == \"Success\" and ApprovalType == \"Critical\", \"Approved (Critical)\",\r\n    Status_s == \"Success\" and ApprovalType == \"Standard\", \"Approved (Standard)\",\r\n    Status_s == \"Error\", \"Error\",\r\n    \"Other\"\r\n)\r\n| project Status, Count=count_\r\n| order by Count desc"
+                    },
+                    {
+                      "name": "TimeRange",
+                      "isOptional": true,
+                      "value": "P7D"
+                    },
+                    {
+                      "name": "Version",
+                      "isOptional": true,
+                      "value": "1.0"
+                    },
+                    {
+                      "name": "PartId",
+                      "isOptional": true,
+                      "value": "Approval Stats"
+                    },
+                    {
+                      "name": "PartTitle",
+                      "isOptional": true,
+                      "value": "Approval Workflow Status (7d)"
+                    }
+                  ],
+                  "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+                  "settings": {}
+                }
+              },
+              "12": {
+                "position": {
+                  "x": 6,
+                  "y": 15,
+                  "colSpan": 12,
+                  "rowSpan": 4
+                },
+                "metadata": {
+                  "inputs": [
+                    {
+                      "name": "resourceTypeMode",
+                      "isOptional": true,
+                      "value": "workspace"
+                    },
+                    {
+                      "name": "ComponentId",
+                      "isOptional": true,
+                      "value": {
+                        "SubscriptionId": "[subscription().subscriptionId]",
+                        "ResourceGroup": "[resourceGroup().name]",
+                        "Name": "[parameters('ctiWorkspaceName')]",
+                        "ResourceId": "[parameters('ctiWorkspaceId')]"
+                      }
+                    },
+                    {
+                      "name": "Query",
+                      "isOptional": true,
+                      "value": "// Pending approvals\r\nCTI_DistributionHistory_CL\r\n| where TimeGenerated > ago(7d)\r\n| where DistributionType_s has \"Approval\" and Status_s == \"Waiting\"\r\n| extend ApprovalType = iff(DistributionType_s has \"Critical\", \"Critical\", \"Standard\")\r\n| project TimeGenerated, IndicatorId_g, IndicatorValue_s, IndicatorType_s, ApprovalType, Details_s\r\n| order by TimeGenerated asc"
+                    },
+                    {
+                      "name": "TimeRange",
+                      "isOptional": true,
+                      "value": "P7D"
+                    },
+                    {
+                      "name": "Version",
+                      "isOptional": true,
+                      "value": "1.0"
+                    },
+                    {
+                      "name": "PartId",
+                      "isOptional": true,
+                      "value": "Pending Approvals"
+                    },
+                    {
+                      "name": "PartTitle",
+                      "isOptional": true,
+                      "value": "Pending Approval Requests"
                     }
                   ],
                   "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
@@ -1455,6 +2070,438 @@
       "dependsOn": [
         "[resourceId('Microsoft.Logic/workflows', variables('approvalWorkflowName'))]"
       ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-10-01",
+      "name": "[concat(parameters('prefix'), '-SecurityCopilot-Deployment-', parameters('environment'))]",
+      "condition": "[parameters('enableSecurityCopilot')]",
+      "properties": {
+        "mode": "Incremental",
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "resources": [
+            {
+              "type": "Microsoft.Insights/dataCollectionEndpoints",
+              "apiVersion": "2021-09-01-preview",
+              "name": "[parameters('dceNameForCopilot')]",
+              "location": "[parameters('location')]",
+              "tags": "[union(parameters('tags'), createObject('Component', 'Security Copilot Integration', 'Version', 'V5'))]",
+              "properties": {
+                "description": "Data Collection Endpoint for Security Copilot integration",
+                "networkAcls": {
+                  "publicNetworkAccess": "Enabled"
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Logic/workflows",
+              "apiVersion": "2019-05-01",
+              "name": "[concat(parameters('prefix'), '-SecurityCopilot-Connector-', parameters('environment'))]",
+              "location": "[parameters('location')]",
+              "tags": "[union(parameters('tags'), createObject('Component', 'Security Copilot Connector', 'Version', 'V5'))]",
+              "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                  "[parameters('managedIdentityId')]": {}
+                }
+              },
+              "properties": {
+                "state": "Enabled",
+                "definition": {
+                  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                  "contentVersion": "1.0.0.0",
+                  "parameters": {
+                    "$connections": {
+                      "defaultValue": {},
+                      "type": "Object"
+                    },
+                    "maxRetryCount": {
+                      "defaultValue": "[parameters('maxRetryCount')]",
+                      "type": "Int"
+                    }
+                  },
+                  "triggers": {
+                    "manual": {
+                      "type": "Request",
+                      "kind": "Http",
+                      "inputs": {
+                        "schema": {
+                          "type": "object",
+                          "properties": {
+                            "indicatorType": {
+                              "type": "string"
+                            },
+                            "indicatorValue": {
+                              "type": "string"
+                            },
+                            "action": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            },
+                            "description": {
+                              "type": "string"
+                            },
+                            "confidenceScore": {
+                              "type": "number"
+                            },
+                            "tlp": {
+                              "type": "string"
+                            },
+                            "threatType": {
+                              "type": "string"
+                            },
+                            "validFrom": {
+                              "type": "string"
+                            },
+                            "validUntil": {
+                              "type": "string"
+                            },
+                            "indicatorId": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "indicatorType",
+                            "indicatorValue",
+                            "indicatorId"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "actions": {
+                    "Initialize_Variables": {
+                      "runAfter": {},
+                      "type": "InitializeVariable",
+                      "inputs": {
+                        "variables": [
+                          {
+                            "name": "dceEndpoint",
+                            "type": "string",
+                            "value": "[concat('https://', parameters('dceNameForCopilot'), '.', parameters('location'), '.monitor.azure.com')]"
+                          },
+                          {
+                            "name": "indicatorPayload",
+                            "type": "object",
+                            "value": {
+                              "indicatorType": "@triggerBody()?['indicatorType']",
+                              "indicatorValue": "@triggerBody()?['indicatorValue']",
+                              "action": "@coalesce(triggerBody()?['action'], 'block')",
+                              "confidenceScore": "@coalesce(triggerBody()?['confidenceScore'], 70)",
+                              "tlp": "@coalesce(triggerBody()?['tlp'], 'TLP:AMBER')",
+                              "threatType": "@coalesce(triggerBody()?['threatType'], 'malicious-activity')",
+                              "source": "CTI Inoculation Engine",
+                              "description": "@coalesce(triggerBody()?['description'], 'Distributed by CTI Inoculation Engine')"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "Process_Indicator_Type": {
+                      "runAfter": {
+                        "Initialize_Variables": [
+                          "Succeeded"
+                        ]
+                      },
+                      "type": "Switch",
+                      "expression": "@toLower(triggerBody()?['indicatorType'])",
+                      "cases": {
+                        "domainname": {
+                          "actions": {
+                            "Send_Domain_Indicator": {
+                              "runAfter": {},
+                              "type": "Http",
+                              "inputs": {
+                                "method": "POST",
+                                "uri": "[concat('@{variables(''dceEndpoint'')}/dataCollectionRules/dcr-', parameters('prefix'), '-SecurityCopilot-', parameters('environment'), '/streams/Custom-CTI_DomainIndicators_CL')]",
+                                "headers": {
+                                  "Content-Type": "application/json",
+                                  "Authorization": "Bearer @{activity('Get_Management_Token').output.access_token}"
+                                },
+                                "body": [
+                                  {
+                                    "Source": "@{variables('indicatorPayload').source}",
+                                    "Domain": "@{variables('indicatorPayload').indicatorValue}",
+                                    "ThreatType": "@{variables('indicatorPayload').threatType}",
+                                    "Confidence": "@{variables('indicatorPayload').confidenceScore}",
+                                    "TLP": "@{variables('indicatorPayload').tlp}",
+                                    "Action": "@{variables('indicatorPayload').action}",
+                                    "Description": "@{variables('indicatorPayload').description}",
+                                    "IndicatorId": "@{triggerBody()?['indicatorId']}"
+                                  }
+                                ]
+                              },
+                              "retryPolicy": {
+                                "type": "fixed",
+                                "count": "@parameters('maxRetryCount')",
+                                "interval": "PT10S"
+                              }
+                            }
+                          }
+                        },
+                        "ipv4": {
+                          "actions": {
+                            "Send_IP_Indicator": {
+                              "runAfter": {},
+                              "type": "Http",
+                              "inputs": {
+                                "method": "POST",
+                                "uri": "[concat('@{variables(''dceEndpoint'')}/dataCollectionRules/dcr-', parameters('prefix'), '-SecurityCopilot-', parameters('environment'), '/streams/Custom-CTI_IPIndicators_CL')]",
+                                "headers": {
+                                  "Content-Type": "application/json",
+                                  "Authorization": "Bearer @{activity('Get_Management_Token').output.access_token}"
+                                },
+                                "body": [
+                                  {
+                                    "Source": "@{variables('indicatorPayload').source}",
+                                    "IPAddress": "@{variables('indicatorPayload').indicatorValue}",
+                                    "ThreatType": "@{variables('indicatorPayload').threatType}",
+                                    "Confidence": "@{variables('indicatorPayload').confidenceScore}",
+                                    "TLP": "@{variables('indicatorPayload').tlp}",
+                                    "Action": "@{variables('indicatorPayload').action}",
+                                    "Description": "@{variables('indicatorPayload').description}",
+                                    "IndicatorId": "@{triggerBody()?['indicatorId']}"
+                                  }
+                                ]
+                              },
+                              "retryPolicy": {
+                                "type": "fixed",
+                                "count": "@parameters('maxRetryCount')",
+                                "interval": "PT10S"
+                              }
+                            }
+                          }
+                        },
+                        "url": {
+                          "actions": {
+                            "Send_URL_Indicator": {
+                              "runAfter": {},
+                              "type": "Http",
+                              "inputs": {
+                                "method": "POST",
+                                "uri": "[concat('@{variables(''dceEndpoint'')}/dataCollectionRules/dcr-', parameters('prefix'), '-SecurityCopilot-', parameters('environment'), '/streams/Custom-CTI_URLIndicators_CL')]",
+                                "headers": {
+                                  "Content-Type": "application/json",
+                                  "Authorization": "Bearer @{activity('Get_Management_Token').output.access_token}"
+                                },
+                                "body": [
+                                  {
+                                    "Source": "@{variables('indicatorPayload').source}",
+                                    "URL": "@{variables('indicatorPayload').indicatorValue}",
+                                    "ThreatType": "@{variables('indicatorPayload').threatType}",
+                                    "Confidence": "@{variables('indicatorPayload').confidenceScore}",
+                                    "TLP": "@{variables('indicatorPayload').tlp}",
+                                    "Action": "@{variables('indicatorPayload').action}",
+                                    "Description": "@{variables('indicatorPayload').description}",
+                                    "IndicatorId": "@{triggerBody()?['indicatorId']}"
+                                  }
+                                ]
+                              },
+                              "retryPolicy": {
+                                "type": "fixed",
+                                "count": "@parameters('maxRetryCount')",
+                                "interval": "PT10S"
+                              }
+                            }
+                          }
+                        },
+                        "filehash-md5": {
+                          "actions": {
+                            "Send_File_Hash_Indicator_MD5": {
+                              "runAfter": {},
+                              "type": "Http",
+                              "inputs": {
+                                "method": "POST",
+                                "uri": "[concat('@{variables(''dceEndpoint'')}/dataCollectionRules/dcr-', parameters('prefix'), '-SecurityCopilot-', parameters('environment'), '/streams/Custom-CTI_FileHashIndicators_CL')]",
+                                "headers": {
+                                  "Content-Type": "application/json",
+                                  "Authorization": "Bearer @{activity('Get_Management_Token').output.access_token}"
+                                },
+                                "body": [
+                                  {
+                                    "Source": "@{variables('indicatorPayload').source}",
+                                    "MD5": "@{variables('indicatorPayload').indicatorValue}",
+                                    "ThreatType": "@{variables('indicatorPayload').threatType}",
+                                    "Confidence": "@{variables('indicatorPayload').confidenceScore}",
+                                    "TLP": "@{variables('indicatorPayload').tlp}",
+                                    "Action": "@{variables('indicatorPayload').action}",
+                                    "Description": "@{variables('indicatorPayload').description}",
+                                    "IndicatorId": "@{triggerBody()?['indicatorId']}"
+                                  }
+                                ]
+                              },
+                              "retryPolicy": {
+                                "type": "fixed",
+                                "count": "@parameters('maxRetryCount')",
+                                "interval": "PT10S"
+                              }
+                            }
+                          }
+                        },
+                        "filehash-sha1": {
+                          "actions": {
+                            "Send_File_Hash_Indicator_SHA1": {
+                              "runAfter": {},
+                              "type": "Http",
+                              "inputs": {
+                                "method": "POST",
+                                "uri": "[concat('@{variables(''dceEndpoint'')}/dataCollectionRules/dcr-', parameters('prefix'), '-SecurityCopilot-', parameters('environment'), '/streams/Custom-CTI_FileHashIndicators_CL')]",
+                                "headers": {
+                                  "Content-Type": "application/json",
+                                  "Authorization": "Bearer @{activity('Get_Management_Token').output.access_token}"
+                                },
+                                "body": [
+                                  {
+                                    "Source": "@{variables('indicatorPayload').source}",
+                                    "SHA1": "@{variables('indicatorPayload').indicatorValue}",
+                                    "ThreatType": "@{variables('indicatorPayload').threatType}",
+                                    "Confidence": "@{variables('indicatorPayload').confidenceScore}",
+                                    "TLP": "@{variables('indicatorPayload').tlp}",
+                                    "Action": "@{variables('indicatorPayload').action}",
+                                    "Description": "@{variables('indicatorPayload').description}",
+                                    "IndicatorId": "@{triggerBody()?['indicatorId']}"
+                                  }
+                                ]
+                              },
+                              "retryPolicy": {
+                                "type": "fixed",
+                                "count": "@parameters('maxRetryCount')",
+                                "interval": "PT10S"
+                              }
+                            }
+                          }
+                        },
+                        "filehash-sha256": {
+                          "actions": {
+                            "Send_File_Hash_Indicator_SHA256": {
+                              "runAfter": {},
+                              "type": "Http",
+                              "inputs": {
+                                "method": "POST",
+                                "uri": "[concat('@{variables(''dceEndpoint'')}/dataCollectionRules/dcr-', parameters('prefix'), '-SecurityCopilot-', parameters('environment'), '/streams/Custom-CTI_FileHashIndicators_CL')]",
+                                "headers": {
+                                  "Content-Type": "application/json",
+                                  "Authorization": "Bearer @{activity('Get_Management_Token').output.access_token}"
+                                },
+                                "body": [
+                                  {
+                                    "Source": "@{variables('indicatorPayload').source}",
+                                    "SHA256": "@{variables('indicatorPayload').indicatorValue}",
+                                    "ThreatType": "@{variables('indicatorPayload').threatType}",
+                                    "Confidence": "@{variables('indicatorPayload').confidenceScore}",
+                                    "TLP": "@{variables('indicatorPayload').tlp}",
+                                    "Action": "@{variables('indicatorPayload').action}",
+                                    "Description": "@{variables('indicatorPayload').description}",
+                                    "IndicatorId": "@{triggerBody()?['indicatorId']}"
+                                  }
+                                ]
+                              },
+                              "retryPolicy": {
+                                "type": "fixed",
+                                "count": "@parameters('maxRetryCount')",
+                                "interval": "PT10S"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "default": {
+                        "actions": {
+                          "Log_Unsupported_Indicator_Type": {
+                            "runAfter": {},
+                            "type": "ApiConnection",
+                            "inputs": {
+                              "host": {
+                                "connection": {
+                                  "name": "@parameters('$connections')['azureloganalyticsdatacollector']['connectionId']"
+                                }
+                              },
+                              "method": "post",
+                              "body": "@{utcNow()},@{guid()},SecurityCopilotConnector,IndicatorTypeError,@{triggerBody()?['indicatorType']},Unsupported indicator type for Security Copilot,@{utcNow()}",
+                              "headers": {
+                                "Log-Type": "CTI_ProcessingErrors_CL"
+                              },
+                              "path": "/api/logs"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "Response": {
+                      "runAfter": {
+                        "Process_Indicator_Type": [
+                          "Succeeded"
+                        ]
+                      },
+                      "type": "Response",
+                      "kind": "Http",
+                      "inputs": {
+                        "statusCode": 200,
+                        "body": {
+                          "status": "success",
+                          "message": "Indicator processed for Security Copilot",
+                          "indicatorId": "@{triggerBody()?['indicatorId']}"
+                        }
+                      }
+                    }
+                  }
+                },
+                "parameters": {
+                  "$connections": {
+                    "value": {
+                      "azureloganalyticsdatacollector": {
+                        "connectionId": "[parameters('logAnalyticsConnectionId')]",
+                        "connectionName": "azureloganalyticsdatacollector",
+                        "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azureloganalyticsdatacollector')]"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Insights/dataCollectionRules",
+              "apiVersion": "2021-09-01-preview",
+              "name": "[concat('dcr-', parameters('prefix'), '-SecurityCopilot-', parameters('environment'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "description": "Data Collection Rule for Security Copilot integration",
+                "dataSources": {},
+                "destinations": {
+                  "logAnalytics": [
+                    {
+                      "workspaceResourceId": "[parameters('ctiWorkspaceId')]",
+                      "name": "SecurityCopilotWorkspace"
+                    }
+                  ]
+                },
+                "dataFlows": [
+                  {
+                    "streams": [
+                      "Custom-CTI_DomainIndicators_CL",
+                      "Custom-CTI_IPIndicators_CL",
+                      "Custom-CTI_URLIndicators_CL",
+                      "Custom-CTI_FileHashIndicators_CL"
+                    ],
+                    "destinations": [
+                      "SecurityCopilotWorkspace"
+                    ]
+                  }
+                ],
+                "dataCollectionEndpointId": "[resourceId('Microsoft.Insights/dataCollectionEndpoints', parameters('dceNameForCopilot'))]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/dataCollectionEndpoints', parameters('dceNameForCopilot'))]"
+              ]
+            }
+          ]
+        }
+      }
     }
   ],
   "outputs": {
