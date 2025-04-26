@@ -1,0 +1,623 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "prefix": {
+      "type": "string",
+      "defaultValue": "cti",
+      "metadata": {
+        "description": "Prefix for all resources"
+      },
+      "minLength": 2,
+      "maxLength": 8
+    },
+    "environment": {
+      "type": "string",
+      "defaultValue": "prod",
+      "metadata": {
+        "description": "Environment (prod, dev, test)"
+      },
+      "allowedValues": [
+        "prod",
+        "dev",
+        "test",
+        "uat"
+      ]
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Primary Azure region"
+      }
+    },
+    "enableCrossCloudProtection": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable protection for non-Microsoft clouds"
+      }
+    },
+    "enableNetworkProtection": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable network security appliance integrations"
+      }
+    },
+    "enableEndpointProtection": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable EDR/XDR system integrations"
+      }
+    },
+    "tablePlan": {
+      "type": "string",
+      "defaultValue": "Analytics",
+      "metadata": {
+        "description": "Table plan for Log Analytics"
+      },
+      "allowedValues": [
+        "Analytics",
+        "Basic",
+        "Standard"
+      ]
+    },
+    "emailNotificationAddress": {
+      "type": "string",
+      "defaultValue": "securityteam@contoso.com",
+      "metadata": {
+        "description": "Email address for notifications"
+      }
+    },
+    "sla": {
+      "type": "object",
+      "defaultValue": {
+        "approvalTimeMinutes": 120,
+        "criticalApprovalTimeMinutes": 30
+      },
+      "metadata": {
+        "description": "SLA settings for approval workflows"
+      }
+    },
+    "retentionDays": {
+      "type": "int",
+      "defaultValue": 90,
+      "metadata": {
+        "description": "Data retention period in days"
+      },
+      "minValue": 30,
+      "maxValue": 730
+    },
+    "performanceTier": {
+      "type": "string",
+      "defaultValue": "Standard",
+      "metadata": {
+        "description": "Performance tier for Logic Apps"
+      },
+      "allowedValues": [
+        "Basic",
+        "Standard",
+        "Premium"
+      ]
+    }
+  },
+  "variables": {
+    "workspaceName": "[concat(parameters('prefix'), '-cti-', parameters('environment'), '-workspace')]",
+    "keyVaultName": "[concat(parameters('prefix'), '-cti-', parameters('environment'), '-kv')]",
+    "managedIdentityName": "[concat(parameters('prefix'), '-cti-', parameters('environment'), '-mi')]",
+    "resourceTags": {
+      "Environment": "[parameters('environment')]",
+      "Solution": "Central Threat Intelligence V5",
+      "DeployedBy": "ARM Template",
+      "Version": "5.0.0"
+    },
+    "deploymentUrls": {
+      "coreBicepTemplate": "https://raw.githubusercontent.com/SecurityOrg/CTI-V5/main/modules/core-resources.json",
+      "ctiTables": "https://raw.githubusercontent.com/SecurityOrg/CTI-V5/main/modules/cti-tables.json",
+      "inoculationEngine": "https://raw.githubusercontent.com/SecurityOrg/CTI-V5/main/modules/v5-inoculation-engine.json",
+      "microsoft": "https://raw.githubusercontent.com/SecurityOrg/CTI-V5/main/modules/microsoft-connectors.json",
+      "aws": "https://raw.githubusercontent.com/SecurityOrg/CTI-V5/main/modules/aws-connectors.json",
+      "gcp": "https://raw.githubusercontent.com/SecurityOrg/CTI-V5/main/modules/gcp-connectors.json",
+      "network": "https://raw.githubusercontent.com/SecurityOrg/CTI-V5/main/modules/network-connectors.json",
+      "edr": "https://raw.githubusercontent.com/SecurityOrg/CTI-V5/main/modules/edr-connectors.json",
+      "dashboards": "https://raw.githubusercontent.com/SecurityOrg/CTI-V5/main/modules/dashboards.json",
+      "telemetry": "https://raw.githubusercontent.com/SecurityOrg/CTI-V5/main/modules/telemetry.json"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "coreResourcesDeployment",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('deploymentUrls').coreBicepTemplate]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tagsMap": {
+            "value": "[variables('resourceTags')]"
+          },
+          "retentionDays": {
+            "value": "[parameters('retentionDays')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "ctiTablesDeployment",
+      "dependsOn": [
+        "coreResourcesDeployment"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('deploymentUrls').ctiTables]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "workspaceName": {
+            "value": "[reference('coreResourcesDeployment').outputs.workspaceName.value]"
+          },
+          "tablePlan": {
+            "value": "[parameters('tablePlan')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "retentionDays": {
+            "value": "[parameters('retentionDays')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "inoculationEngineDeployment",
+      "dependsOn": [
+        "ctiTablesDeployment"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('deploymentUrls').inoculationEngine]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "managedIdentityId": {
+            "value": "[reference('coreResourcesDeployment').outputs.managedIdentityId.value]"
+          },
+          "logAnalyticsConnectionId": {
+            "value": "[reference('coreResourcesDeployment').outputs.logAnalyticsConnectionId.value]"
+          },
+          "logAnalyticsQueryConnectionId": {
+            "value": "[reference('coreResourcesDeployment').outputs.logAnalyticsQueryConnectionId.value]"
+          },
+          "ctiWorkspaceName": {
+            "value": "[reference('coreResourcesDeployment').outputs.workspaceName.value]"
+          },
+          "ctiWorkspaceId": {
+            "value": "[reference('coreResourcesDeployment').outputs.workspaceId.value]"
+          },
+          "keyVaultName": {
+            "value": "[reference('coreResourcesDeployment').outputs.keyVaultName.value]"
+          },
+          "tags": {
+            "value": "[variables('resourceTags')]"
+          },
+          "enableTelemetry": {
+            "value": true
+          },
+          "enableAutoScaling": {
+            "value": true
+          },
+          "maxRetryCount": {
+            "value": 3
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "microsoftConnectorsDeployment",
+      "dependsOn": [
+        "inoculationEngineDeployment"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('deploymentUrls').microsoft]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "managedIdentityId": {
+            "value": "[reference('coreResourcesDeployment').outputs.managedIdentityId.value]"
+          },
+          "logAnalyticsConnectionId": {
+            "value": "[reference('coreResourcesDeployment').outputs.logAnalyticsConnectionId.value]"
+          },
+          "logAnalyticsQueryConnectionId": {
+            "value": "[reference('coreResourcesDeployment').outputs.logAnalyticsQueryConnectionId.value]"
+          },
+          "microsoftGraphConnectionId": {
+            "value": "[reference('coreResourcesDeployment').outputs.microsoftGraphConnectionId.value]"
+          },
+          "ctiWorkspaceName": {
+            "value": "[reference('coreResourcesDeployment').outputs.workspaceName.value]"
+          },
+          "ctiWorkspaceId": {
+            "value": "[reference('coreResourcesDeployment').outputs.workspaceId.value]"
+          },
+          "keyVaultName": {
+            "value": "[reference('coreResourcesDeployment').outputs.keyVaultName.value]"
+          },
+          "clientSecretName": {
+            "value": "CTI-APP-SECRET"
+          },
+          "appClientId": {
+            "value": "[reference('coreResourcesDeployment').outputs.appClientId.value]"
+          },
+          "tenantId": {
+            "value": "[subscription().tenantId]"
+          },
+          "tags": {
+            "value": "[union(variables('resourceTags'), createObject('Component', 'Microsoft Connectors'))]"
+          },
+          "performanceTier": {
+            "value": "[parameters('performanceTier')]"
+          },
+          "maxRetryCount": {
+            "value": 3
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "awsConnectorsDeployment",
+      "condition": "[parameters('enableCrossCloudProtection')]",
+      "dependsOn": [
+        "inoculationEngineDeployment"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('deploymentUrls').aws]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "managedIdentityId": {
+            "value": "[reference('coreResourcesDeployment').outputs.managedIdentityId.value]"
+          },
+          "logAnalyticsConnectionId": {
+            "value": "[reference('coreResourcesDeployment').outputs.logAnalyticsConnectionId.value]"
+          },
+          "logAnalyticsQueryConnectionId": {
+            "value": "[reference('coreResourcesDeployment').outputs.logAnalyticsQueryConnectionId.value]"
+          },
+          "ctiWorkspaceName": {
+            "value": "[reference('coreResourcesDeployment').outputs.workspaceName.value]"
+          },
+          "ctiWorkspaceId": {
+            "value": "[reference('coreResourcesDeployment').outputs.workspaceId.value]"
+          },
+          "keyVaultName": {
+            "value": "[reference('coreResourcesDeployment').outputs.keyVaultName.value]"
+          },
+          "awsSecretName": {
+            "value": "AWS-CREDENTIALS"
+          },
+          "tags": {
+            "value": "[union(variables('resourceTags'), createObject('Component', 'AWS Connectors'))]"
+          },
+          "performanceTier": {
+            "value": "[parameters('performanceTier')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "gcpConnectorsDeployment",
+      "condition": "[parameters('enableCrossCloudProtection')]",
+      "dependsOn": [
+        "inoculationEngineDeployment"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('deploymentUrls').gcp]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "managedIdentityId": {
+            "value": "[reference('coreResourcesDeployment').outputs.managedIdentityId.value]"
+          },
+          "logAnalyticsConnectionId": {
+            "value": "[reference('coreResourcesDeployment').outputs.logAnalyticsConnectionId.value]"
+          },
+          "logAnalyticsQueryConnectionId": {
+            "value": "[reference('coreResourcesDeployment').outputs.logAnalyticsQueryConnectionId.value]"
+          },
+          "ctiWorkspaceName": {
+            "value": "[reference('coreResourcesDeployment').outputs.workspaceName.value]"
+          },
+          "ctiWorkspaceId": {
+            "value": "[reference('coreResourcesDeployment').outputs.workspaceId.value]"
+          },
+          "keyVaultName": {
+            "value": "[reference('coreResourcesDeployment').outputs.keyVaultName.value]"
+          },
+          "gcpSecretName": {
+            "value": "GCP-CREDENTIALS"
+          },
+          "tags": {
+            "value": "[union(variables('resourceTags'), createObject('Component', 'GCP Connectors'))]"
+          },
+          "performanceTier": {
+            "value": "[parameters('performanceTier')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "networkConnectorsDeployment",
+      "condition": "[parameters('enableNetworkProtection')]",
+      "dependsOn": [
+        "inoculationEngineDeployment"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('deploymentUrls').network]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "managedIdentityId": {
+            "value": "[reference('coreResourcesDeployment').outputs.managedIdentityId.value]"
+          },
+          "logAnalyticsConnectionId": {
+            "value": "[reference('coreResourcesDeployment').outputs.logAnalyticsConnectionId.value]"
+          },
+          "logAnalyticsQueryConnectionId": {
+            "value": "[reference('coreResourcesDeployment').outputs.logAnalyticsQueryConnectionId.value]"
+          },
+          "ctiWorkspaceName": {
+            "value": "[reference('coreResourcesDeployment').outputs.workspaceName.value]"
+          },
+          "ctiWorkspaceId": {
+            "value": "[reference('coreResourcesDeployment').outputs.workspaceId.value]"
+          },
+          "keyVaultName": {
+            "value": "[reference('coreResourcesDeployment').outputs.keyVaultName.value]"
+          },
+          "tags": {
+            "value": "[union(variables('resourceTags'), createObject('Component', 'Network Connectors'))]"
+          },
+          "performanceTier": {
+            "value": "[parameters('performanceTier')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "edrConnectorsDeployment",
+      "condition": "[parameters('enableEndpointProtection')]",
+      "dependsOn": [
+        "inoculationEngineDeployment"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('deploymentUrls').edr]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "managedIdentityId": {
+            "value": "[reference('coreResourcesDeployment').outputs.managedIdentityId.value]"
+          },
+          "logAnalyticsConnectionId": {
+            "value": "[reference('coreResourcesDeployment').outputs.logAnalyticsConnectionId.value]"
+          },
+          "logAnalyticsQueryConnectionId": {
+            "value": "[reference('coreResourcesDeployment').outputs.logAnalyticsQueryConnectionId.value]"
+          },
+          "ctiWorkspaceName": {
+            "value": "[reference('coreResourcesDeployment').outputs.workspaceName.value]"
+          },
+          "ctiWorkspaceId": {
+            "value": "[reference('coreResourcesDeployment').outputs.workspaceId.value]"
+          },
+          "keyVaultName": {
+            "value": "[reference('coreResourcesDeployment').outputs.keyVaultName.value]"
+          },
+          "tags": {
+            "value": "[union(variables('resourceTags'), createObject('Component', 'EDR Connectors'))]"
+          },
+          "performanceTier": {
+            "value": "[parameters('performanceTier')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "dashboardsDeployment",
+      "dependsOn": [
+        "microsoftConnectorsDeployment",
+        "awsConnectorsDeployment",
+        "gcpConnectorsDeployment",
+        "networkConnectorsDeployment",
+        "edrConnectorsDeployment"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('deploymentUrls').dashboards]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "workspaceId": {
+            "value": "[reference('coreResourcesDeployment').outputs.workspaceId.value]"
+          },
+          "workspaceName": {
+            "value": "[reference('coreResourcesDeployment').outputs.workspaceName.value]"
+          },
+          "tags": {
+            "value": "[union(variables('resourceTags'), createObject('Component', 'Dashboards'))]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "telemetryDeployment",
+      "dependsOn": [
+        "dashboardsDeployment"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('deploymentUrls').telemetry]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "workspaceId": {
+            "value": "[reference('coreResourcesDeployment').outputs.workspaceId.value]"
+          },
+          "workspaceName": {
+            "value": "[reference('coreResourcesDeployment').outputs.workspaceName.value]"
+          },
+          "emailNotificationAddress": {
+            "value": "[parameters('emailNotificationAddress')]"
+          },
+          "tags": {
+            "value": "[union(variables('resourceTags'), createObject('Component', 'Telemetry'))]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "postDeploymentSetup",
+      "dependsOn": [
+        "telemetryDeployment"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "resources": [],
+          "outputs": {
+            "setupInstructions": {
+              "type": "string",
+              "value": "Your CTI V5 solution has been deployed successfully! Please complete these post-deployment steps:\n1. Grant admin consent for API permissions in the app registration\n2. Add API keys for third-party services to the Key Vault\n3. Configure credentials for AWS, GCP, and other integration targets\n4. Review dashboard permissions"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "resourceGroupName": {
+      "type": "string",
+      "value": "[resourceGroup().name]"
+    },
+    "workspaceId": {
+      "type": "string",
+      "value": "[reference('coreResourcesDeployment').outputs.workspaceId.value]"
+    },
+    "workspaceName": {
+      "type": "string",
+      "value": "[reference('coreResourcesDeployment').outputs.workspaceName.value]"
+    },
+    "keyVaultName": {
+      "type": "string",
+      "value": "[reference('coreResourcesDeployment').outputs.keyVaultName.value]"
+    },
+    "managedIdentityName": {
+      "type": "string",
+      "value": "[reference('coreResourcesDeployment').outputs.managedIdentityName.value]"
+    },
+    "inoculationEngineUrl": {
+      "type": "string",
+      "value": "[format('https://portal.azure.com/#@{0}/resource{1}/workflows/{2}', subscription().tenantId, resourceGroup().id, reference('inoculationEngineDeployment').outputs.inoculationEngineName.value)]"
+    },
+    "dashboardUrl": {
+      "type": "string",
+      "value": "[format('https://portal.azure.com/#@{0}/resource{1}/dashboards/{2}', subscription().tenantId, resourceGroup().id, reference('inoculationEngineDeployment').outputs.dashboardId.value)]"
+    },
+    "setupInstructions": {
+      "type": "string",
+      "value": "[reference('postDeploymentSetup').outputs.setupInstructions.value]"
+    }
+  }
+}
