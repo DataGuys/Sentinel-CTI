@@ -35,7 +35,7 @@
   },
   "variables": {
     "workspaceName": "[concat(parameters('prefix'), '-cti-', parameters('environment'), '-workspace')]",
-    "keyVaultName": "[concat(parameters('prefix'), '-cti-', parameters('environment'), '-kv', uniqueString(resourceGroup().id))]",
+    "keyVaultName": "[concat(parameters('prefix'), '-cti-', parameters('environment'), '-kv', take(uniqueString(resourceGroup().id), 5))]",
     "managedIdentityName": "[concat(parameters('prefix'), '-cti-', parameters('environment'), '-mi')]",
     "appName": "[concat(parameters('prefix'), '-cti-', parameters('environment'), '-app')]"
   },
@@ -129,7 +129,7 @@
           "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azureloganalyticsdatacollector')]"
         },
         "parameterValues": {
-          "username": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName')), '2021-12-01-preview').customerId]",
+          "username": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName')), '2021-12-01-preview').customerId]",
           "password": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName')), '2021-12-01-preview').primarySharedKey]"
         }
       },
@@ -149,7 +149,7 @@
           "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azuremonitorlogs')]"
         },
         "parameterValues": {
-          "username": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName')), '2021-12-01-preview').customerId]",
+          "username": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName')), '2021-12-01-preview').customerId]",
           "password": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName')), '2021-12-01-preview').primarySharedKey]"
         }
       },
@@ -163,19 +163,16 @@
       "name": "microsoftgraph",
       "location": "[parameters('location')]",
       "tags": "[parameters('tagsMap')]",
+      "kind": "V1",
       "properties": {
         "displayName": "Microsoft Graph",
+        "customParameterValues": {},
         "api": {
-          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/microsoftgraph')]"
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/microsoftgraphsecurity')]"
         },
         "parameterValues": {
-          "AuthenticationType": "ManagedServiceIdentity",
-          "managedIdentityId": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]"
         }
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]"
-      ]
+      }
     }
   ],
   "outputs": {
