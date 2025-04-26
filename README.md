@@ -2,7 +2,7 @@
 
 A production-ready, fully automated threat intelligence platform that protects your entire digital estate by dynamically distributing indicators across your security infrastructure with intelligent risk assessment, automated workflows, and comprehensive monitoring.
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FSecurityOrg%2FCTI-V5%2Fmain%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FDataGuys%2FSentinel-CTI%2Frefs%2Fheads%2Fmain%2Fazuredeploy.json)
 
 ## Enterprise-Grade Features
 
