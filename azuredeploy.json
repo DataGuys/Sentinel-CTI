@@ -28,8 +28,26 @@
       "type": "string",
       "defaultValue": "[resourceGroup().location]",
       "metadata": {
-        "description": "Primary Azure region"
-      }
+        "description": "Azure region for deploying resources",
+        "displayName": "Deployment Location"
+      },
+      "allowedValues": [
+        "eastus",
+        "eastus2",
+        "westus",
+        "westus2",
+        "centralus",
+        "northcentralus",
+        "southcentralus",
+        "northeurope",
+        "westeurope",
+        "uksouth",
+        "ukwest",
+        "australiaeast",
+        "australiasoutheast",
+        "southeastasia",
+        "eastasia"
+      ]
     },
     "enableCrossCloudProtection": {
       "type": "bool",
@@ -71,15 +89,18 @@
         "description": "Email address for notifications"
       }
     },
-    "sla": {
-      "type": "object",
-      "defaultValue": {
-        "approvalTimeMinutes": 120,
-        "criticalApprovalTimeMinutes": 30
-      },
+    "slaLevel": {
+      "type": "string",
+      "defaultValue": "Standard",
       "metadata": {
-        "description": "SLA settings for approval workflows"
-      }
+        "description": "Service Level Agreement configuration for threat response",
+        "displayName": "SLA Response Level"
+      },
+      "allowedValues": [
+        "Standard",
+        "Enhanced",
+        "Critical"
+      ]
     },
     "retentionDays": {
       "type": "int",
@@ -124,7 +145,22 @@
       "edr": "https://raw.githubusercontent.com/SecurityOrg/CTI-V5/main/modules/edr-connectors.json",
       "dashboards": "https://raw.githubusercontent.com/SecurityOrg/CTI-V5/main/modules/dashboards.json",
       "telemetry": "https://raw.githubusercontent.com/SecurityOrg/CTI-V5/main/modules/telemetry.json"
-    }
+    },
+    "slaSettings": {
+      "Standard": {
+        "approvalTimeMinutes": 120,
+        "criticalApprovalTimeMinutes": 30
+      },
+      "Enhanced": {
+        "approvalTimeMinutes": 60,
+        "criticalApprovalTimeMinutes": 15
+      },
+      "Critical": {
+        "approvalTimeMinutes": 30,
+        "criticalApprovalTimeMinutes": 5
+      }
+    },
+    "selectedSla": "[variables('slaSettings')[parameters('slaLevel')]]"
   },
   "resources": [
     {
@@ -237,6 +273,9 @@
           },
           "maxRetryCount": {
             "value": 3
+          },
+          "sla": {
+            "value": "[variables('selectedSla')]"
           }
         }
       }
