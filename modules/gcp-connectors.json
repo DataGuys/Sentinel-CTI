@@ -1,0 +1,642 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for resources"
+      }
+    },
+    "managedIdentityId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the managed identity"
+      }
+    },
+    "logAnalyticsConnectionId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Log Analytics Data Collector connection"
+      }
+    },
+    "logAnalyticsQueryConnectionId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Log Analytics Query connection"
+      }
+    },
+    "ctiWorkspaceName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Log Analytics workspace"
+      }
+    },
+    "ctiWorkspaceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Log Analytics workspace"
+      }
+    },
+    "keyVaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Key Vault"
+      }
+    },
+    "gcpSecretName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the GCP credentials secret in Key Vault"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "metadata": {
+        "description": "Tags to apply to resources"
+      }
+    },
+    "performanceTier": {
+      "type": "string",
+      "metadata": {
+        "description": "Performance tier for Logic Apps"
+      },
+      "allowedValues": [
+        "Basic",
+        "Standard",
+        "Premium"
+      ],
+      "defaultValue": "Standard"
+    }
+  },
+  "variables": {
+    "gcpSecurityCommandCenterConnectorName": "CTI-GCP-SecurityCommandCenter-Connector",
+    "gcpCloudArmorConnectorName": "CTI-GCP-CloudArmor-Connector"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[variables('gcpSecurityCommandCenterConnectorName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[parameters('managedIdentityId')]": {}
+        }
+      },
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            },
+            "workspaceName": {
+              "defaultValue": "[parameters('ctiWorkspaceName')]",
+              "type": "String"
+            },
+            "keyVaultName": {
+              "defaultValue": "[parameters('keyVaultName')]",
+              "type": "String"
+            },
+            "gcpSecretName": {
+              "defaultValue": "[parameters('gcpSecretName')]",
+              "type": "String"
+            }
+          },
+          "triggers": {
+            "Recurrence": {
+              "recurrence": {
+                "frequency": "Hour",
+                "interval": 3
+              },
+              "type": "Recurrence"
+            }
+          },
+          "actions": {
+            "Get_GCP_Credentials": {
+              "runAfter": {},
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['keyvault']['connectionId']"
+                  }
+                },
+                "method": "get",
+                "path": "/secrets/@{encodeURIComponent(parameters('gcpSecretName'))}/value"
+              }
+            },
+            "Parse_GCP_Credentials": {
+              "runAfter": {
+                "Get_GCP_Credentials": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ParseJson",
+              "inputs": {
+                "content": "@body('Get_GCP_Credentials').value",
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "project_id": {
+                      "type": "string"
+                    },
+                    "private_key_id": {
+                      "type": "string"
+                    },
+                    "private_key": {
+                      "type": "string"
+                    },
+                    "client_email": {
+                      "type": "string"
+                    },
+                    "client_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "project_id",
+                    "private_key",
+                    "client_email"
+                  ]
+                }
+              }
+            },
+            "Get_High_Confidence_IPs": {
+              "runAfter": {
+                "Parse_GCP_Credentials": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ApiConnection",
+              "inputs": {
+                "body": "CTI_IPIndicators_CL \n| where ConfidenceScore_d >= 80 and TimeGenerated > ago(3h) and isnotempty(IPAddress_s) \n| where not(IPAddress_s matches regex \"^10\\\\.|^172\\\\.(1[6-9]|2[0-9]|3[0-1])\\\\.|^192\\\\.168\\\\.\") \n| where \"GCP Security Command Center\" in (split(DistributionTargets_s, \", \")) \n| project IPAddress_s, ConfidenceScore_d, ThreatType_s, Description_s, IndicatorId_g, Action_s \n| limit 500",
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azuremonitorlogs']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/queryData",
+                "queries": {
+                  "resourcegroups": "[resourceGroup().name]",
+                  "resourcename": "@{parameters('workspaceName')}",
+                  "resourcetype": "Log Analytics Workspace",
+                  "subscriptions": "[subscription().subscriptionId]",
+                  "timerange": "Last 3 hours"
+                }
+              }
+            },
+            "Get_GCP_Auth_Token": {
+              "runAfter": {
+                "Get_High_Confidence_IPs": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Http",
+              "inputs": {
+                "method": "POST",
+                "uri": "https://www.googleapis.com/oauth2/v4/token",
+                "headers": {
+                  "Content-Type": "application/json"
+                },
+                "body": {
+                  "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                  "assertion": "@{CreateJWT(body('Parse_GCP_Credentials'))}"
+                }
+              }
+            },
+            "For_Each_IP_Indicator": {
+              "foreach": "@body('Get_High_Confidence_IPs').tables[0].rows",
+              "actions": {
+                "Create_Security_Finding": {
+                  "runAfter": {},
+                  "type": "Http",
+                  "inputs": {
+                    "method": "POST",
+                    "uri": "https://securitycenter.googleapis.com/v1/projects/@{body('Parse_GCP_Credentials').project_id}/findings",
+                    "headers": {
+                      "Authorization": "Bearer @{body('Get_GCP_Auth_Token').access_token}",
+                      "Content-Type": "application/json"
+                    },
+                    "body": {
+                      "category": "THREAT_INTELLIGENCE",
+                      "resourceName": "projects/@{body('Parse_GCP_Credentials').project_id}",
+                      "externalUri": "",
+                      "eventTime": "@{utcNow()}",
+                      "findingClass": "THREAT",
+                      "severity": "HIGH",
+                      "sourceProperties": {
+                        "ip_address": "@{item()[0]}",
+                        "confidence_score": "@{item()[1]}",
+                        "threat_type": "@{item()[2]}",
+                        "description": "@{item()[3]}",
+                        "indicator_id": "@{item()[4]}"
+                      },
+                      "state": "ACTIVE"
+                    }
+                  }
+                },
+                "Log_Distribution_Success": {
+                  "runAfter": {
+                    "Create_Security_Finding": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "body": "@{utcNow()},@{guid()},@{item()[4]},@{item()[0]},IP,GCP Security Command Center,AutoDistribute,Success,Indicator successfully distributed,@{utcNow()}",
+                    "headers": {
+                      "Log-Type": "CTI_DistributionHistory_CL"
+                    },
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['azureloganalyticsdatacollector']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "path": "/api/logs"
+                  }
+                }
+              },
+              "runAfter": {
+                "Get_GCP_Auth_Token": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Foreach",
+              "runtimeConfiguration": {
+                "concurrency": {
+                  "repetitions": 10
+                }
+              }
+            }
+          }
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "azureloganalyticsdatacollector": {
+                "connectionId": "[parameters('logAnalyticsConnectionId')]",
+                "connectionName": "azureloganalyticsdatacollector",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azureloganalyticsdatacollector')]"
+              },
+              "azuremonitorlogs": {
+                "connectionId": "[parameters('logAnalyticsQueryConnectionId')]",
+                "connectionName": "azuremonitorlogs",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azuremonitorlogs')]"
+              },
+              "keyvault": {
+                "connectionId": "[concat(subscription().id, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Web/connections/keyvault')]",
+                "connectionName": "keyvault",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/keyvault')]"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[variables('gcpCloudArmorConnectorName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[parameters('managedIdentityId')]": {}
+        }
+      },
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            },
+            "workspaceName": {
+              "defaultValue": "[parameters('ctiWorkspaceName')]",
+              "type": "String"
+            },
+            "keyVaultName": {
+              "defaultValue": "[parameters('keyVaultName')]",
+              "type": "String"
+            },
+            "gcpSecretName": {
+              "defaultValue": "[parameters('gcpSecretName')]",
+              "type": "String"
+            }
+          },
+          "triggers": {
+            "Recurrence": {
+              "recurrence": {
+                "frequency": "Hour",
+                "interval": 4
+              },
+              "type": "Recurrence"
+            }
+          },
+          "actions": {
+            "Get_GCP_Credentials": {
+              "runAfter": {},
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['keyvault']['connectionId']"
+                  }
+                },
+                "method": "get",
+                "path": "/secrets/@{encodeURIComponent(parameters('gcpSecretName'))}/value"
+              }
+            },
+            "Parse_GCP_Credentials": {
+              "runAfter": {
+                "Get_GCP_Credentials": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ParseJson",
+              "inputs": {
+                "content": "@body('Get_GCP_Credentials').value",
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "project_id": {
+                      "type": "string"
+                    },
+                    "private_key_id": {
+                      "type": "string"
+                    },
+                    "private_key": {
+                      "type": "string"
+                    },
+                    "client_email": {
+                      "type": "string"
+                    },
+                    "client_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "project_id",
+                    "private_key",
+                    "client_email"
+                  ]
+                }
+              }
+            },
+            "Get_High_Confidence_IPs": {
+              "runAfter": {
+                "Parse_GCP_Credentials": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ApiConnection",
+              "inputs": {
+                "body": "CTI_IPIndicators_CL \n| where ConfidenceScore_d >= 80 and TimeGenerated > ago(4h) and isnotempty(IPAddress_s) \n| where not(IPAddress_s matches regex \"^10\\\\.|^172\\\\.(1[6-9]|2[0-9]|3[0-1])\\\\.|^192\\\\.168\\\\.\") \n| where \"GCP Cloud Armor\" in (split(DistributionTargets_s, \", \")) \n| project IPAddress_s, ConfidenceScore_d, ThreatType_s, Description_s, IndicatorId_g, Action_s \n| limit 500",
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azuremonitorlogs']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/queryData",
+                "queries": {
+                  "resourcegroups": "[resourceGroup().name]",
+                  "resourcename": "@{parameters('workspaceName')}",
+                  "resourcetype": "Log Analytics Workspace",
+                  "subscriptions": "[subscription().subscriptionId]",
+                  "timerange": "Last 4 hours"
+                }
+              }
+            },
+            "Get_GCP_Auth_Token": {
+              "runAfter": {
+                "Get_High_Confidence_IPs": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Http",
+              "inputs": {
+                "method": "POST",
+                "uri": "https://www.googleapis.com/oauth2/v4/token",
+                "headers": {
+                  "Content-Type": "application/json"
+                },
+                "body": {
+                  "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                  "assertion": "@{CreateJWT(body('Parse_GCP_Credentials'))}"
+                }
+              }
+            },
+            "Get_Security_Policy_ID": {
+              "runAfter": {
+                "Get_GCP_Auth_Token": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Http",
+              "inputs": {
+                "method": "GET",
+                "uri": "https://compute.googleapis.com/compute/v1/projects/@{body('Parse_GCP_Credentials').project_id}/global/securityPolicies",
+                "headers": {
+                  "Authorization": "Bearer @{body('Get_GCP_Auth_Token').access_token}"
+                }
+              }
+            },
+            "Process_IP_Indicators": {
+              "runAfter": {
+                "Get_Security_Policy_ID": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Compose",
+              "inputs": "@union(variables('existingDenylist'), variables('newIPIndicators'))"
+            },
+            "Update_Security_Policy": {
+              "runAfter": {
+                "Process_IP_Indicators": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Http",
+              "inputs": {
+                "method": "PATCH",
+                "uri": "https://compute.googleapis.com/compute/v1/projects/@{body('Parse_GCP_Credentials').project_id}/global/securityPolicies/@{first(body('Get_Security_Policy_ID').items).name}",
+                "headers": {
+                  "Authorization": "Bearer @{body('Get_GCP_Auth_Token').access_token}",
+                  "Content-Type": "application/json"
+                },
+                "body": {
+                  "rules": [
+                    {
+                      "priority": 1000,
+                      "action": "deny",
+                      "match": {
+                        "versionedExpr": "SRC_IPS_V1",
+                        "config": {
+                          "srcIpRanges": "@{outputs('Process_IP_Indicators')}"
+                        }
+                      },
+                      "description": "Block malicious IPs from CTI platform"
+                    }
+                  ]
+                }
+              }
+            },
+            "Log_Cloud_Armor_Updates": {
+              "runAfter": {
+                "Update_Security_Policy": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Foreach",
+              "foreach": "@body('Get_High_Confidence_IPs').tables[0].rows",
+              "actions": {
+                "Log_Distribution": {
+                  "runAfter": {},
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "body": "@{utcNow()},@{guid()},@{item()[4]},@{item()[0]},IP,GCP Cloud Armor,AutoDistribute,Success,IP added to Cloud Armor security policy,@{utcNow()}",
+                    "headers": {
+                      "Log-Type": "CTI_DistributionHistory_CL"
+                    },
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['azureloganalyticsdatacollector']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "path": "/api/logs"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "azureloganalyticsdatacollector": {
+                "connectionId": "[parameters('logAnalyticsConnectionId')]",
+                "connectionName": "azureloganalyticsdatacollector",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azureloganalyticsdatacollector')]"
+              },
+              "azuremonitorlogs": {
+                "connectionId": "[parameters('logAnalyticsQueryConnectionId')]",
+                "connectionName": "azuremonitorlogs",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azuremonitorlogs')]"
+              },
+              "keyvault": {
+                "connectionId": "[concat(subscription().id, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Web/connections/keyvault')]",
+                "connectionName": "keyvault",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/keyvault')]"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "name": "[concat(variables('gcpSecurityCommandCenterConnectorName'), '-diagnostics')]",
+      "scope": "[resourceId('Microsoft.Logic/workflows', variables('gcpSecurityCommandCenterConnectorName'))]",
+      "properties": {
+        "workspaceId": "[parameters('ctiWorkspaceId')]",
+        "logs": [
+          {
+            "category": "WorkflowRuntime",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Logic/workflows', variables('gcpSecurityCommandCenterConnectorName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "name": "[concat(variables('gcpCloudArmorConnectorName'), '-diagnostics')]",
+      "scope": "[resourceId('Microsoft.Logic/workflows', variables('gcpCloudArmorConnectorName'))]",
+      "properties": {
+        "workspaceId": "[parameters('ctiWorkspaceId')]",
+        "logs": [
+          {
+            "category": "WorkflowRuntime",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Logic/workflows', variables('gcpCloudArmorConnectorName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "gcpSecurityCommandCenterConnectorResourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Logic/workflows', variables('gcpSecurityCommandCenterConnectorName'))]"
+    },
+    "gcpSecurityCommandCenterConnectorName": {
+      "type": "string",
+      "value": "[variables('gcpSecurityCommandCenterConnectorName')]"
+    },
+    "gcpCloudArmorConnectorResourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Logic/workflows', variables('gcpCloudArmorConnectorName'))]"
+    },
+    "gcpCloudArmorConnectorName": {
+      "type": "string",
+      "value": "[variables('gcpCloudArmorConnectorName')]"
+    }
+  }
+}
