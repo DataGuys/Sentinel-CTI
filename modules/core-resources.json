@@ -155,7 +155,6 @@
   "dependsOn": [
     "[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName'))]"
   ]
-}
    },
     {
       "type": "Microsoft.Web/connections",
