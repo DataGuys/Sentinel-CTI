@@ -143,19 +143,16 @@
   "name": "azuremonitorlogs",
   "location": "[parameters('location')]",
   "tags": "[parameters('tagsMap')]",
-  "kind": "V1",
   "properties": {
     "displayName": "Azure Monitor Logs",
-    "customParameterValues": {},
     "api": {
       "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azuremonitorlogs')]"
-    },
-    "parameterValueType": "Alternative"
+    }
   },
   "dependsOn": [
     "[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName'))]"
   ]
-   },
+},
     {
       "type": "Microsoft.Web/connections",
       "apiVersion": "2016-06-01",
