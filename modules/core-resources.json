@@ -156,10 +156,7 @@
     "[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName'))]"
   ]
 }
-      "dependsOn": [
-        "[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName'))]"
-      ]
-    },
+   },
     {
       "type": "Microsoft.Web/connections",
       "apiVersion": "2016-06-01",
