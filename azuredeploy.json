@@ -144,7 +144,7 @@
       "network": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/network-connectors.json",
       "edr": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/edr-connectors.json",
       "dashboards": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/dashboards.json",
-      "telemetry": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/mainn/modules/telemetry.json"
+      "telemetry": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/telemetry.json"
     },
     "slaSettings": {
       "Standard": {
