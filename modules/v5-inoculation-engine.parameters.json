@@ -1,0 +1,46 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "prefix": {
+            "value": "cti" 
+        },
+        "environment": {
+            "value": "production"
+        },
+        "location": {
+            "value": "westus"
+        },
+        "managedIdentityId": {
+            "value": "managed-identity"
+        },
+        "logAnalyticsConnectionId": {
+            "value": "log-analytics"
+        },
+        "logAnalyticsQueryConnectionId": {
+            "value": "log-analytics-query"
+        },
+        "ctiWorkspaceName": {
+            "value": "workspace"
+        },
+        "ctiWorkspaceId": {
+            "value": "workspace-id"
+        },
+        "keyVaultName": {
+            "value": "keyvault"
+        },
+        "tags": {
+            "value": {
+                
+            }
+        },
+        "sla": {
+            "value": {
+                
+            }
+        },
+        "diagnosticSettingsRetentionDays": {
+            "value": 30 
+        }
+    }
+}
