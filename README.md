@@ -14,7 +14,7 @@ A production-ready, fully automated threat intelligence platform that protects y
 
 ## Architecture Overview
 
-![CTI-V5 Architecture](https://raw.githubusercontent.com/SecurityOrg/CTI-V5/main/images/architecture-diagram1.svg)
+![CTI-V5 Architecture](https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/images/architecture-diagram.svg)
 
 ## Enhanced Components
 
