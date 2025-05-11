@@ -76,7 +76,7 @@
   "resources": [
     {
       "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2019-05-01",
+      "apiVersion": "2017-07-01",
       "name": "[variables('gcpSecurityCommandCenterConnectorName')]",
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
@@ -308,7 +308,7 @@
     },
     {
       "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2019-05-01",
+      "apiVersion": "2017-07-01",
       "name": "[variables('gcpCloudArmorConnectorName')]",
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",

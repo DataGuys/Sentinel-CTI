@@ -8,23 +8,17 @@
         "description": "Name of the Log Analytics workspace"
       }
     },
-    "tablePlan": {
-      "type": "string",
-      "allowedValues": [
-        "Analytics",
-        "Basic",
-        "Standard"
-      ],
-      "metadata": {
-        "description": "Plan for Log Analytics tables"
-      }
-    },
-    "location": {
-      "type": "string",
-      "metadata": {
-        "description": "Azure region for resources"
-      }
-    },
+"tablePlan": {
+  "type": "string",
+  "allowedValues": [
+    "Analytics",
+    "Basic",
+    "Auxiliary"
+  ],
+  "metadata": {
+    "description": "Plan for Log Analytics tables"
+  }
+},
     "retentionDays": {
       "type": "int",
       "metadata": {
@@ -42,7 +36,7 @@
         "retentionDays": 30,
         "totalRetentionDays": 60
       },
-      "Standard": {
+      "Auxiliary": {
         "retentionDays": 90,
         "totalRetentionDays": 180
       }
@@ -129,7 +123,7 @@
             },
             {
               "name": "Active_b",
-              "type": "bool",
+              "type": "boolean",
               "description": "Whether the indicator is active"
             },
             {
@@ -199,7 +193,7 @@
             },
             {
               "name": "Active_b",
-              "type": "bool",
+              "type": "boolean",
               "description": "Whether the indicator is active"
             },
             {
@@ -284,7 +278,7 @@
             },
             {
               "name": "Active_b",
-              "type": "bool",
+              "type": "boolean",
               "description": "Whether the indicator is active"
             },
             {
@@ -369,7 +363,7 @@
             },
             {
               "name": "Active_b",
-              "type": "bool",
+              "type": "boolean",
               "description": "Whether the indicator is active"
             },
             {
@@ -464,7 +458,7 @@
             },
             {
               "name": "Active_b",
-              "type": "bool",
+              "type": "boolean",
               "description": "Whether the indicator is active"
             },
             {
@@ -564,7 +558,7 @@
             },
             {
               "name": "Active_b",
-              "type": "bool",
+              "type": "boolean",
               "description": "Whether the feed is active"
             }
           ]

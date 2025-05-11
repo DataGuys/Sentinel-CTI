@@ -62,20 +62,6 @@
         "description": "Tags to apply to resources"
       }
     },
-    "enableTelemetry": {
-      "type": "bool",
-      "defaultValue": true,
-      "metadata": {
-        "description": "Enable system telemetry"
-      }
-    },
-    "enableAutoScaling": {
-      "type": "bool",
-      "defaultValue": true,
-      "metadata": {
-        "description": "Enable auto-scaling for Logic Apps"
-      }
-    },
     "maxRetryCount": {
       "type": "int",
       "defaultValue": 3,
@@ -89,46 +75,13 @@
         "description": "SLA configuration"
       }
     },
-    "clientSecretName": {
-      "type": "string",
-      "metadata": {
-        "description": "Name of the client secret in Key Vault"
-      }
-    },
     "diagnosticSettingsRetentionDays": {
       "type": "int",
       "metadata": {
         "description": "Retention period for diagnostic settings"
       }
-    },
-    "enableMDTI": {
-      "type": "bool",
-      "defaultValue": true,
-      "metadata": {
-        "description": "Enable Microsoft Defender Threat Intelligence integration"
-      }
-    },
-    "enableSecurityCopilot": {
-      "type": "bool",
-      "defaultValue": false,
-      "metadata": {
-        "description": "Enable Microsoft Security Copilot integration"
-      }
-    },
-    "dceNameForCopilot": {
-      "type": "string",
-      "metadata": {
-        "description": "Data Collection Endpoint name for Security Copilot"
-      }
-    },
-    "securityApiBaseUrl": {
-      "type": "string",
-      "defaultValue": "https://api.securitycenter.microsoft.com",
-      "metadata": {
-        "description": "Security API base URL"
-      }
     }
-  },
+    },
   "variables": {
     "inoculationEngineName": "[concat(parameters('prefix'), '-inoculation-', parameters('environment'))]",
     "triageEngineName": "[concat(parameters('prefix'), '-triage-', parameters('environment'))]",
@@ -156,7 +109,7 @@
     },
     {
       "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2019-05-01",
+      "apiVersion": "2017-07-01",
       "name": "[variables('inoculationEngineName')]",
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
@@ -279,7 +232,7 @@
     },
     {
       "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2019-05-01",
+      "apiVersion": "2017-07-01",
       "name": "[variables('triageEngineName')]",
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
@@ -389,7 +342,7 @@
     },
     {
       "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2019-05-01",
+      "apiVersion": "2017-07-01",
       "name": "[variables('approvalWorkflowName')]",
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
@@ -492,7 +445,7 @@
     },
     {
       "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2019-05-01",
+      "apiVersion": "2017-07-01",
       "name": "[variables('enrichmentEngineName')]",
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
@@ -603,13 +556,13 @@
         "logs": [
           {
             "category": "WorkflowRuntime",
-            "enabled": true,
+            "enabled": true
         }
         ],
         "metrics": [
           {
             "category": "AllMetrics",
-            "enabled": true,
+            "enabled": true
         }
         ]
       },
