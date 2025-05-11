@@ -2,6 +2,16 @@
 
 A production-ready, fully automated threat intelligence platform that protects your entire digital estate by dynamically distributing indicators across your security infrastructure with intelligent risk assessment, automated workflows, and comprehensive monitoring.
 
+## Deploy CTI App Registration
+
+### Prerequisite for functionality
+Copy and paste this command into Azure Cloud Shell Bash Terminal.
+
+```bash
+curl -sL https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/scripts/create-cti-app-registration.sh | tr -d '\r' | bash
+```
+Once the app registration is deployed and the permissions granted you can then deploy the Central Threat Intelligence solution.
+
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FDataGuys%2FSentinel-CTI%2Frefs%2Fheads%2Fmain%2Fazuredeploy.json)
 
 ## Enterprise-Grade Features
