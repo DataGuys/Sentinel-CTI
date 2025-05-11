@@ -1,0 +1,263 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" style="background-color: #ffffff;">
+  <!-- Styles -->
+  <defs>
+    <style>
+      .title {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        font-size: 20px;
+        font-weight: bold;
+        fill: #212121;
+      }
+      .subtitle {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        font-size: 15px;
+        fill: #757575;
+      }
+      .component {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        font-size: 14px;
+        font-weight: bold;
+        fill: white;
+        text-anchor: middle;
+      }
+      .subcomponent {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        font-size: 12px;
+        font-weight: normal;
+        fill: #424242;
+        text-anchor: middle;
+      }
+      .annotation {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        font-size: 12px;
+        fill: #757575;
+      }
+      .arrow {
+        stroke: #757575;
+        stroke-width: 2;
+        fill: none;
+        marker-end: url(#arrowhead);
+      }
+      .dashed-arrow {
+        stroke: #757575;
+        stroke-width: 2;
+        stroke-dasharray: 5,5;
+        fill: none;
+        marker-end: url(#arrowhead);
+      }
+      .ms-box {
+        fill: #0078D4;
+        stroke: #005a9e;
+        stroke-width: 1;
+        rx: 5;
+        ry: 5;
+      }
+      .aws-box {
+        fill: #FF9900;
+        stroke: #d68b00;
+        stroke-width: 1;
+        rx: 5;
+        ry: 5;
+      }
+      .gcp-box {
+        fill: #4285F4;
+        stroke: #3367d6;
+        stroke-width: 1;
+        rx: 5;
+        ry: 5;
+      }
+      .network-box {
+        fill: #00A97F;
+        stroke: #007d5e;
+        stroke-width: 1;
+        rx: 5;
+        ry: 5;
+      }
+      .data-box {
+        fill: #512BD4;
+        stroke: #3c22a1;
+        stroke-width: 1;
+        rx: 5;
+        ry: 5;
+      }
+      .engine-box {
+        fill: #D83B01;
+        stroke: #a32d01;
+        stroke-width: 1;
+        rx: 5;
+        ry: 5;
+      }
+      .system-box {
+        fill: #F2C811;
+        stroke: #d9b10f;
+        stroke-width: 1;
+        rx: 5;
+        ry: 5;
+      }
+      .user-box {
+        fill: #F7F7F7;
+        stroke: #CCCCCC;
+        stroke-width: 1;
+        rx: 5;
+        ry: 5;
+      }
+      .section-box {
+        fill: #F8F8F8;
+        stroke: #ECECEC;
+        stroke-width: 1;
+        rx: 10;
+        ry: 10;
+      }
+      .section-title {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        font-size: 14px;
+        font-weight: bold;
+        fill: #616161;
+      }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#757575" />
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="500" y="30" class="title" text-anchor="middle">Central Threat Intelligence M365 E5 IoC Inoculation Engine</text>
+  <text x="500" y="50" class="subtitle" text-anchor="middle">Architecture Overview</text>
+
+  <!-- Section Boxes -->
+  <!-- Data Sources Section -->
+  <rect x="50" y="70" width="200" height="220" class="section-box" />
+  <text x="70" y="90" class="section-title">Threat Intelligence Sources</text>
+
+  <!-- Core Engine Section -->
+  <rect x="350" y="70" width="300" height="220" class="section-box" />
+  <text x="370" y="90" class="section-title">Core Processing Engine</text>
+
+  <!-- Distribution Targets Section -->
+  <rect x="750" y="70" width="200" height="450" class="section-box" />
+  <text x="770" y="90" class="section-title">Distribution Targets</text>
+  
+  <!-- Data Storage Section -->
+  <rect x="50" y="310" width="600" height="210" class="section-box" />
+  <text x="70" y="330" class="section-title">Data Storage & Management</text>
+
+  <!-- Monitoring & Visualization -->
+  <rect x="350" y="420" width="300" height="70" class="section-box" />
+  <text x="370" y="440" class="section-title">Monitoring & Reporting</text>
+
+  <!-- Components -->
+  <!-- Threat Intelligence Sources -->
+  <rect x="75" y="110" width="150" height="40" class="ms-box" />
+  <text x="150" y="135" class="component">MDTI</text>
+  
+  <rect x="75" y="160" width="150" height="40" class="data-box" />
+  <text x="150" y="185" class="component">STIX/TAXII Feeds</text>
+  
+  <rect x="75" y="210" width="150" height="40" class="data-box" />
+  <text x="150" y="235" class="component">Custom Feeds</text>
+
+  <!-- Core Engine Components -->
+  <rect x="375" y="110" width="250" height="40" class="engine-box" />
+  <text x="500" y="135" class="component">V5 Inoculation Engine</text>
+  
+  <rect x="375" y="160" width="250" height="40" class="system-box" />
+  <text x="500" y="185" class="component">Risk Assessment Engine</text>
+  
+  <rect x="375" y="210" width="250" height="40" class="engine-box" />
+  <text x="500" y="235" class="component">Workflow Orchestration</text>
+
+  <!-- Distribution Targets -->
+  <!-- Microsoft Products -->
+  <rect x="775" y="110" width="150" height="40" class="ms-box" />
+  <text x="850" y="135" class="component">Defender XDR</text>
+  
+  <rect x="775" y="160" width="150" height="40" class="ms-box" />
+  <text x="850" y="185" class="component">Sentinel</text>
+  
+  <rect x="775" y="210" width="150" height="40" class="ms-box" />
+  <text x="850" y="235" class="component">Entra ID</text>
+  
+  <rect x="775" y="260" width="150" height="40" class="ms-box" />
+  <text x="850" y="285" class="component">Exchange Online</text>
+
+  <!-- Cloud Products -->
+  <rect x="775" y="320" width="150" height="40" class="aws-box" />
+  <text x="850" y="345" class="component">AWS Security Hub</text>
+  
+  <rect x="775" y="370" width="150" height="40" class="gcp-box" />
+  <text x="850" y="395" class="component">GCP Security</text>
+
+  <!-- Network Products -->
+  <rect x="775" y="420" width="150" height="40" class="network-box" />
+  <text x="850" y="445" class="component">Network Security</text>
+  <text x="850" y="460" class="subcomponent">Palo Alto, Cisco, Fortinet</text>
+
+  <!-- Data Storage -->
+  <rect x="75" y="350" width="200" height="60" class="data-box" />
+  <text x="175" y="375" class="component">Unified Indicator Store</text>
+  <text x="175" y="395" class="subcomponent">Log Analytics Tables</text>
+  
+  <rect x="75" y="420" width="200" height="60" class="ms-box" />
+  <text x="175" y="445" class="component">Key Vault</text>
+  <text x="175" y="465" class="subcomponent">API Keys & Credentials</text>
+
+  <!-- Monitoring -->
+  <rect x="375" y="350" width="200" height="60" class="system-box" />
+  <text x="475" y="375" class="component">Effectiveness</text>
+  <text x="475" y="395" class="subcomponent">Measurement System</text>
+  
+  <rect x="375" y="450" width="200" height="30" class="ms-box" />
+  <text x="475" y="470" class="component">Dashboards</text>
+
+  <!-- Connections -->
+  <!-- Sources to Core Engine -->
+  <path d="M 225 130 H 375" class="arrow" />
+  <path d="M 225 180 H 375" class="arrow" />
+  <path d="M 225 230 H 375" class="arrow" />
+  
+  <!-- Core Engine to Distribution -->
+  <path d="M 625 130 H 775" class="arrow" />
+  <path d="M 625 180 H 740 V 180 H 775" class="arrow" />
+  <path d="M 625 230 H 740 V 230 H 775" class="arrow" />
+  <path d="M 740 180 V 270 H 775" class="dashed-arrow" />
+  <path d="M 740 270 V 340 H 775" class="dashed-arrow" />
+  <path d="M 740 340 V 390 H 775" class="dashed-arrow" />
+  <path d="M 740 390 V 440 H 775" class="dashed-arrow" />
+
+  <!-- Core Engine to Data Storage -->
+  <path d="M 500 250 V 350" class="arrow" />
+  
+  <!-- Data Storage to Monitoring -->
+  <path d="M 275 380 H 375" class="arrow" />
+  
+  <!-- Data Storage to Core Engine -->
+  <path d="M 275 350 V 180 H 375" class="dashed-arrow" />
+
+  <!-- Legend -->
+  <rect x="50" y="540" width="20" height="15" class="engine-box" />
+  <text x="75" y="552" class="annotation">Core Engines</text>
+  
+  <rect x="150" y="540" width="20" height="15" class="ms-box" />
+  <text x="175" y="552" class="annotation">Microsoft</text>
+  
+  <rect x="250" y="540" width="20" height="15" class="data-box" />
+  <text x="275" y="552" class="annotation">Data</text>
+  
+  <rect x="350" y="540" width="20" height="15" class="aws-box" />
+  <text x="375" y="552" class="annotation">AWS</text>
+  
+  <rect x="450" y="540" width="20" height="15" class="gcp-box" />
+  <text x="475" y="552" class="annotation">GCP</text>
+  
+  <rect x="550" y="540" width="20" height="15" class="network-box" />
+  <text x="575" y="552" class="annotation">Network</text>
+  
+  <rect x="650" y="540" width="20" height="15" class="system-box" />
+  <text x="675" y="552" class="annotation">System</text>
+  
+  <line x1="750" y1="547" x2="780" y2="547" class="arrow" />
+  <text x="810" y="552" class="annotation">Data Flow</text>
+  
+  <line x1="850" y1="547" x2="880" y2="547" class="dashed-arrow" />
+  <text x="920" y="552" class="annotation">Optional Flow</text>
+</svg>
