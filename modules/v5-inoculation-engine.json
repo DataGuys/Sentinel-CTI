@@ -1,4 +1,9 @@
 {
+  "$schema": "https://schema.management.azure.com/schemas/2020-09-01/dashboard.json",
+  "type": "Microsoft.Portal/dashboards",
+  "apiVersion": "2020-09-01-preview",
+}
+{
   "type": "Microsoft.Portal/dashboards",
   "apiVersion": "2020-09-01-preview",
   "name": "[variables('dashboardName')]",
