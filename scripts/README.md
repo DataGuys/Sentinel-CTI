@@ -1,4 +1,4 @@
-#purge softdeleted keyvaults
+# Purge softdeleted keyvaults
 
 
 ```bash
