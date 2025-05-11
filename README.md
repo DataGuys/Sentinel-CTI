@@ -1,4 +1,4 @@
-# Central Threat Intelligence V5: Production Inoculation Engine
+# Central Threat Intelligence M365 E5 IoC Inoculation Engine
 
 A production-ready, fully automated threat intelligence platform that protects your entire digital estate by dynamically distributing indicators across your security infrastructure with intelligent risk assessment, automated workflows, and comprehensive monitoring.
 
