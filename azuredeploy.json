@@ -235,6 +235,9 @@
           "tablePlan": {
             "value": "[parameters('tablePlan')]"
           },
+          "location": {
+            "value": "[parameters('location')]"
+          },
           "retentionDays": {
             "value": "[parameters('retentionDays')]"
           }

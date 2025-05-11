@@ -643,7 +643,7 @@
             "conditionalVisibility": {
               "parameterName": "SelectedFeedId",
               "comparison": "isNotEqualTo",
-              "value": ""
+              "value": null
             },
             "name": "FeedOperations"
           },
@@ -655,7 +655,7 @@
             "conditionalVisibility": {
               "parameterName": "FeedOperationButton",
               "comparison": "isNotEqualTo",
-              "value": ""
+              "value": null
             },
             "name": "FeedOperationOutput"
           },
@@ -856,7 +856,7 @@
                   "conditionalVisibility": {
                     "parameterName": "AddFeedButton",
                     "comparison": "isNotEqualTo",
-                    "value": ""
+                    "value": null
                   },
                   "name": "FeedAdditionQuery"
                 }
@@ -1095,7 +1095,7 @@
             "conditionalVisibility": {
               "parameterName": "SaveDistributionConfig",
               "comparison": "isNotEqualTo",
-              "value": ""
+              "value": null
             },
             "name": "SaveDistributionConfigStatus"
           }
@@ -1480,7 +1480,7 @@
             "conditionalVisibility": {
               "parameterName": "RunDiagnostics",
               "comparison": "isNotEqualTo",
-              "value": ""
+              "value": null
             },
             "name": "SystemDiagnosticsResult"
           }
@@ -1504,5 +1504,5 @@
   "fallbackResourceIds": [
     "Azure Monitor"
   ],
-  "$schema": "https://raw.githubusercontent.com/Microsoft/Application-Insights-Workbooks/master/schema/workbook.json"
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
 }

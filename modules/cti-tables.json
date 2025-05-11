@@ -129,7 +129,7 @@
             },
             {
               "name": "Active_b",
-              "type": "boolean",
+              "type": "bool",
               "description": "Whether the indicator is active"
             },
             {
@@ -199,7 +199,7 @@
             },
             {
               "name": "Active_b",
-              "type": "boolean",
+              "type": "bool",
               "description": "Whether the indicator is active"
             },
             {
@@ -284,7 +284,7 @@
             },
             {
               "name": "Active_b",
-              "type": "boolean",
+              "type": "bool",
               "description": "Whether the indicator is active"
             },
             {
@@ -369,7 +369,7 @@
             },
             {
               "name": "Active_b",
-              "type": "boolean",
+              "type": "bool",
               "description": "Whether the indicator is active"
             },
             {
@@ -464,7 +464,7 @@
             },
             {
               "name": "Active_b",
-              "type": "boolean",
+              "type": "bool",
               "description": "Whether the indicator is active"
             },
             {
@@ -564,7 +564,7 @@
             },
             {
               "name": "Active_b",
-              "type": "boolean",
+              "type": "bool",
               "description": "Whether the feed is active"
             }
           ]

@@ -13,9 +13,9 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # V5: Proper repository references
-REPO_OWNER="DataGuys"
-REPO_NAME="Sentinel-CTI"
-REPO_BRANCH="${REPO_BRANCH:-main}" # Assuming 'main' is your primary branch
+REPO_OWNER="SecurityOrg"
+REPO_NAME="CTI-V5"
+REPO_BRANCH="${REPO_BRANCH:-main}"
 RAW_BASE="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_BRANCH}"
 DEPLOY_NAME="cti-v5-$(date +%Y%m%d%H%M%S)"
 

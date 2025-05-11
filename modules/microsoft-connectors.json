@@ -44,6 +44,18 @@
         "description": "Resource ID of the Log Analytics workspace"
       }
     },
+    "keyVaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Key Vault"
+      }
+    },
+    "clientSecretName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the client secret in Key Vault"
+      }
+    },
     "appClientId": {
       "type": "string",
       "metadata": {
@@ -93,7 +105,7 @@
   "resources": [
     {
       "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2017-07-01",
+      "apiVersion": "2019-05-01",
       "name": "[variables('defenderConnectorName')]",
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
@@ -370,7 +382,7 @@
     },
     {
       "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2017-07-01",
+      "apiVersion": "2019-05-01",
       "name": "[variables('sentinelConnectorName')]",
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
@@ -533,7 +545,7 @@
     },
     {
       "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2017-07-01",
+      "apiVersion": "2019-05-01",
       "name": "[variables('entraConnectorName')]",
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
@@ -695,7 +707,7 @@
     },
     {
       "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2017-07-01",
+      "apiVersion": "2019-05-01",
       "name": "[variables('exoConnectorName')]",
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
@@ -848,21 +860,29 @@
       }
     },
     {
-      "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2017-07-01",
+      "type": "Microsoft.Logic/workflows/providers/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
       "name": "[concat(variables('defenderConnectorName'), '/Microsoft.Insights/diagnostics')]",
       "properties": {
         "workspaceId": "[parameters('ctiWorkspaceId')]",
         "logs": [
           {
             "category": "WorkflowRuntime",
-            "enabled": true
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
           }
         ],
         "metrics": [
           {
             "category": "AllMetrics",
-            "enabled": true
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
           }
         ]
       },
@@ -871,21 +891,29 @@
       ]
     },
     {
-     "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2017-07-01",
+      "type": "Microsoft.Logic/workflows/providers/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
       "name": "[concat(variables('sentinelConnectorName'), '/Microsoft.Insights/diagnostics')]",
       "properties": {
         "workspaceId": "[parameters('ctiWorkspaceId')]",
         "logs": [
           {
             "category": "WorkflowRuntime",
-            "enabled": true
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
           }
         ],
         "metrics": [
           {
             "category": "AllMetrics",
-            "enabled": true
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
           }
         ]
       },
@@ -894,21 +922,29 @@
       ]
     },
     {
-     "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2017-07-01",
+      "type": "Microsoft.Logic/workflows/providers/diagnosticSettings", 
+      "apiVersion": "2021-05-01-preview",
       "name": "[concat(variables('entraConnectorName'), '/Microsoft.Insights/diagnostics')]",
       "properties": {
         "workspaceId": "[parameters('ctiWorkspaceId')]",
         "logs": [
           {
             "category": "WorkflowRuntime",
-            "enabled": true
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
           }
         ],
         "metrics": [
           {
             "category": "AllMetrics",
-            "enabled": true
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
           }
         ]
       },
@@ -917,21 +953,29 @@
       ]
     },
     {
-      "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2017-07-01",
+      "type": "Microsoft.Logic/workflows/providers/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
       "name": "[concat(variables('exoConnectorName'), '/Microsoft.Insights/diagnostics')]",
       "properties": {
         "workspaceId": "[parameters('ctiWorkspaceId')]",
         "logs": [
           {
             "category": "WorkflowRuntime",
-            "enabled": true
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
           }
         ],
         "metrics": [
           {
             "category": "AllMetrics",
-            "enabled": true
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
           }
         ]
       },

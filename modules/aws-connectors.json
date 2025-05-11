@@ -77,7 +77,7 @@
   "resources": [
     {
       "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2017-07-01",
+      "apiVersion": "2019-05-01",
       "name": "[variables('awsSecurityHubConnectorName')]",
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
@@ -313,7 +313,7 @@
     },
     {
       "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2017-07-01",
+      "apiVersion": "2019-05-01",
       "name": "[variables('awsNetworkFirewallConnectorName')]",
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
@@ -526,7 +526,7 @@
     },
     {
       "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2017-07-01",
+      "apiVersion": "2019-05-01",
       "name": "[variables('awsWafConnectorName')]",
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
@@ -775,14 +775,22 @@
         "logs": [
           {
             "category": "WorkflowRuntime",
-            "enabled": true
-        }
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
         ],
         "metrics": [
           {
             "category": "AllMetrics",
-            "enabled": true
-        }
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
         ]
       },
       "dependsOn": [
@@ -799,14 +807,22 @@
         "logs": [
           {
             "category": "WorkflowRuntime",
-            "enabled": true
-        }
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
         ],
         "metrics": [
           {
             "category": "AllMetrics",
-            "enabled": true
-        }
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
         ]
       },
       "dependsOn": [
@@ -823,14 +839,22 @@
         "logs": [
           {
             "category": "WorkflowRuntime",
-            "enabled": true
-        }
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
         ],
         "metrics": [
           {
             "category": "AllMetrics",
-            "enabled": true
-        }
+            "enabled": true,
+            "retentionPolicy": {
+              "days": 30,
+              "enabled": true
+            }
+          }
         ]
       },
       "dependsOn": [
