@@ -44,16 +44,16 @@
   },
   "resources": [
     {
-      "type": "Microsoft.OperationalInsights/workspaces/tables",
-      "apiVersion": "2021-12-01-preview",
-      "name": "[concat(parameters('workspaceName'), '/CTI_ThreatIntelIndicator_CL')]",
+    "apiVersion": "2021-12-01-preview",
+    "type": "Microsoft.OperationalInsights/workspaces/tables",
+    "name": "[concat(parameters('workspaceName'), '/CTI_ThreatIntelIndicator_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_ThreatIntelIndicator_CL",
           "columns": [
             {
               "name": "TimeGenerated",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "Time when the record was created"
             },
             {
@@ -93,12 +93,12 @@
             },
             {
               "name": "ValidFrom_t",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "When the indicator becomes valid"
             },
             {
               "name": "ValidUntil_t",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "When the indicator expires"
             },
             {
@@ -144,16 +144,16 @@
       }
     },
     {
-      "type": "Microsoft.OperationalInsights/workspaces/tables",
       "apiVersion": "2021-12-01-preview",
-      "name": "[concat(parameters('workspaceName'), '/CTI_IPIndicators_CL')]",
+      "type": "Microsoft.OperationalInsights/workspaces/tables",
+      "name": "[concat(parameters('workspaceName'), 'CTI_IPIndicators_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_IPIndicators_CL",
           "columns": [
             {
               "name": "TimeGenerated",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "Time when the record was created"
             },
             {
@@ -173,12 +173,12 @@
             },
             {
               "name": "FirstSeen_t",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "When first observed"
             },
             {
-              "name": "ExpirationDateTime_t",
-              "type": "datetime",
+              "name": "ExpirationdateTime_t",
+              "type": "dateTime",
               "description": "When the indicator expires"
             },
             {
@@ -208,7 +208,7 @@
             },
             {
               "name": "LastUpdated_t",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "When last updated"
             },
             {
@@ -231,14 +231,14 @@
     {
       "type": "Microsoft.OperationalInsights/workspaces/tables",
       "apiVersion": "2021-12-01-preview",
-      "name": "[concat(parameters('workspaceName'), '/CTI_DomainIndicators_CL')]",
+      "name": "[concat(parameters('workspaceName'), 'CTI_DomainIndicators_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_DomainIndicators_CL",
           "columns": [
             {
               "name": "TimeGenerated",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "Time when the record was created"
             },
             {
@@ -258,12 +258,12 @@
             },
             {
               "name": "FirstSeen_t",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "When first observed"
             },
             {
-              "name": "ExpirationDateTime_t",
-              "type": "datetime",
+              "name": "ExpirationdateTime_t",
+              "type": "dateTime",
               "description": "When the indicator expires"
             },
             {
@@ -293,7 +293,7 @@
             },
             {
               "name": "LastUpdated_t",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "When last updated"
             },
             {
@@ -316,14 +316,14 @@
     {
       "type": "Microsoft.OperationalInsights/workspaces/tables",
       "apiVersion": "2021-12-01-preview",
-      "name": "[concat(parameters('workspaceName'), '/CTI_URLIndicators_CL')]",
+      "name": "[concat(parameters('workspaceName'), 'CTI_URLIndicators_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_URLIndicators_CL",
           "columns": [
             {
               "name": "TimeGenerated",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "Time when the record was created"
             },
             {
@@ -343,12 +343,12 @@
             },
             {
               "name": "FirstSeen_t",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "When first observed"
             },
             {
-              "name": "ExpirationDateTime_t",
-              "type": "datetime",
+              "name": "ExpirationdateTime_t",
+              "type": "dateTime",
               "description": "When the indicator expires"
             },
             {
@@ -378,7 +378,7 @@
             },
             {
               "name": "LastUpdated_t",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "When last updated"
             },
             {
@@ -401,14 +401,14 @@
     {
       "type": "Microsoft.OperationalInsights/workspaces/tables",
       "apiVersion": "2021-12-01-preview",
-      "name": "[concat(parameters('workspaceName'), '/CTI_FileHashIndicators_CL')]",
+      "name": "[concat(parameters('workspaceName'), 'CTI_FileHashIndicators_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_FileHashIndicators_CL",
           "columns": [
             {
               "name": "TimeGenerated",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "Time when the record was created"
             },
             {
@@ -438,12 +438,12 @@
             },
             {
               "name": "FirstSeen_t",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "When first observed"
             },
             {
-              "name": "ExpirationDateTime_t",
-              "type": "datetime",
+              "name": "ExpirationdateTime_t",
+              "type": "dateTime",
               "description": "When the indicator expires"
             },
             {
@@ -473,7 +473,7 @@
             },
             {
               "name": "LastUpdated_t",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "When last updated"
             },
             {
@@ -496,14 +496,14 @@
     {
       "type": "Microsoft.OperationalInsights/workspaces/tables",
       "apiVersion": "2021-12-01-preview",
-      "name": "[concat(parameters('workspaceName'), '/CTI_IntelligenceFeeds_CL')]",
+      "name": "[concat(parameters('workspaceName'), 'CTI_IntelligenceFeeds_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_IntelligenceFeeds_CL",
           "columns": [
             {
               "name": "TimeGenerated",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "Time when the record was created"
             },
             {
@@ -533,7 +533,7 @@
             },
             {
               "name": "LastUpdateTime_t",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "Last successful update"
             },
             {
@@ -571,14 +571,14 @@
     {
       "type": "Microsoft.OperationalInsights/workspaces/tables",
       "apiVersion": "2021-12-01-preview",
-      "name": "[concat(parameters('workspaceName'), '/CTI_DistributionHistory_CL')]",
+      "name": "[concat(parameters('workspaceName'), 'CTI_DistributionHistory_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_DistributionHistory_CL",
           "columns": [
             {
               "name": "TimeGenerated",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "Time when the record was created"
             },
             {
@@ -623,7 +623,7 @@
             },
             {
               "name": "Timestamp_t",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "When the operation completed"
             }
           ]
@@ -636,14 +636,14 @@
     {
       "type": "Microsoft.OperationalInsights/workspaces/tables",
       "apiVersion": "2021-12-01-preview",
-      "name": "[concat(parameters('workspaceName'), '/CTI_StixData_CL')]",
+      "name": "[concat(parameters('workspaceName'), 'CTI_StixData_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_StixData_CL",
           "columns": [
             {
               "name": "TimeGenerated",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "Time when the record was created"
             },
             {
@@ -681,14 +681,14 @@
     {
       "type": "Microsoft.OperationalInsights/workspaces/tables",
       "apiVersion": "2021-12-01-preview",
-      "name": "[concat(parameters('workspaceName'), '/CTI_ProcessingErrors_CL')]",
+      "name": "[concat(parameters('workspaceName'), 'CTI_ProcessingErrors_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_ProcessingErrors_CL",
           "columns": [
             {
               "name": "TimeGenerated",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "Time when the error occurred"
             },
             {
@@ -736,14 +736,14 @@
     {
       "type": "Microsoft.OperationalInsights/workspaces/tables",
       "apiVersion": "2021-12-01-preview",
-      "name": "[concat(parameters('workspaceName'), '/CTI_TelemetryData_CL')]",
+      "name": "[concat(parameters('workspaceName'), 'CTI_TelemetryData_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_TelemetryData_CL",
           "columns": [
             {
               "name": "TimeGenerated",
-              "type": "datetime",
+              "type": "dateTime",
               "description": "Time when the record was created"
             },
             {

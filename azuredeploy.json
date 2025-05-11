@@ -224,6 +224,9 @@
       ],
       "properties": {
         "mode": "Incremental",
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
         "templateLink": {
           "uri": "[variables('deploymentUrls').ctiTables]",
           "contentVersion": "1.0.0.0"
@@ -234,9 +237,6 @@
           },
           "tablePlan": {
             "value": "[parameters('tablePlan')]"
-          },
-          "location": {
-            "value": "[parameters('location')]"
           },
           "retentionDays": {
             "value": "[parameters('retentionDays')]"
