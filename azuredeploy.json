@@ -224,9 +224,6 @@
       ],
       "properties": {
         "mode": "Incremental",
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
         "templateLink": {
           "uri": "[variables('deploymentUrls').ctiTables]",
           "contentVersion": "1.0.0.0"

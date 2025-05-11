@@ -146,7 +146,7 @@
     {
       "apiVersion": "2021-12-01-preview",
       "type": "Microsoft.OperationalInsights/workspaces/tables",
-      "name": "[concat(parameters('workspaceName'), 'CTI_IPIndicators_CL')]",
+      "name": "[concat(parameters('workspaceName'), '/CTI_IPIndicators_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_IPIndicators_CL",
@@ -231,7 +231,7 @@
     {
       "type": "Microsoft.OperationalInsights/workspaces/tables",
       "apiVersion": "2021-12-01-preview",
-      "name": "[concat(parameters('workspaceName'), 'CTI_DomainIndicators_CL')]",
+      "name": "[concat(parameters('workspaceName'), '/CTI_DomainIndicators_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_DomainIndicators_CL",
@@ -316,7 +316,7 @@
     {
       "type": "Microsoft.OperationalInsights/workspaces/tables",
       "apiVersion": "2021-12-01-preview",
-      "name": "[concat(parameters('workspaceName'), 'CTI_URLIndicators_CL')]",
+      "name": "[concat(parameters('workspaceName'), '/CTI_URLIndicators_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_URLIndicators_CL",
@@ -401,7 +401,7 @@
     {
       "type": "Microsoft.OperationalInsights/workspaces/tables",
       "apiVersion": "2021-12-01-preview",
-      "name": "[concat(parameters('workspaceName'), 'CTI_FileHashIndicators_CL')]",
+      "name": "[concat(parameters('workspaceName'), '/CTI_FileHashIndicators_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_FileHashIndicators_CL",
@@ -496,7 +496,7 @@
     {
       "type": "Microsoft.OperationalInsights/workspaces/tables",
       "apiVersion": "2021-12-01-preview",
-      "name": "[concat(parameters('workspaceName'), 'CTI_IntelligenceFeeds_CL')]",
+      "name": "[concat(parameters('workspaceName'), '/CTI_IntelligenceFeeds_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_IntelligenceFeeds_CL",
@@ -571,7 +571,7 @@
     {
       "type": "Microsoft.OperationalInsights/workspaces/tables",
       "apiVersion": "2021-12-01-preview",
-      "name": "[concat(parameters('workspaceName'), 'CTI_DistributionHistory_CL')]",
+      "name": "[concat(parameters('workspaceName'), '/CTI_DistributionHistory_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_DistributionHistory_CL",
@@ -636,7 +636,7 @@
     {
       "type": "Microsoft.OperationalInsights/workspaces/tables",
       "apiVersion": "2021-12-01-preview",
-      "name": "[concat(parameters('workspaceName'), 'CTI_StixData_CL')]",
+      "name": "[concat(parameters('workspaceName'), '/CTI_StixData_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_StixData_CL",
@@ -681,7 +681,7 @@
     {
       "type": "Microsoft.OperationalInsights/workspaces/tables",
       "apiVersion": "2021-12-01-preview",
-      "name": "[concat(parameters('workspaceName'), 'CTI_ProcessingErrors_CL')]",
+      "name": "[concat(parameters('workspaceName'), '/CTI_ProcessingErrors_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_ProcessingErrors_CL",
@@ -736,7 +736,7 @@
     {
       "type": "Microsoft.OperationalInsights/workspaces/tables",
       "apiVersion": "2021-12-01-preview",
-      "name": "[concat(parameters('workspaceName'), 'CTI_TelemetryData_CL')]",
+      "name": "[concat(parameters('workspaceName'), '/CTI_TelemetryData_CL')]",
       "properties": {
         "schema": {
           "name": "CTI_TelemetryData_CL",
