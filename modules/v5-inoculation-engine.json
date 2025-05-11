@@ -1,5 +1,6 @@
 {
   "$schema": "https://schema.management.azure.com/schemas/2020-09-01/dashboard.json",
+  "contentVersion": "1.0.0.0",
   "name": "[variables('dashboardName')]",
   "location": "[parameters('location')]",
   "tags": "[union(parameters('tags'), createObject('hidden-title', 'CTI Inoculation Engine Operational Dashboard', 'Component', 'Monitoring', 'Version', 'V5'))]",
