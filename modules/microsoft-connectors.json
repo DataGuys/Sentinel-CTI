@@ -860,10 +860,9 @@
       }
     },
     {
-      "type": "Microsoft.Insights/diagnosticSettings",
+      "type": "Microsoft.Logic/workflows/providers/diagnosticSettings",
       "apiVersion": "2021-05-01-preview",
-      "name": "[concat(variables('defenderConnectorName'), '-diagnostics')]",
-      "scope": "[resourceId('Microsoft.Logic/workflows', variables('defenderConnectorName'))]",
+      "name": "[concat(variables('defenderConnectorName'), '/Microsoft.Insights/diagnostics')]",
       "properties": {
         "workspaceId": "[parameters('ctiWorkspaceId')]",
         "logs": [
@@ -892,10 +891,9 @@
       ]
     },
     {
-      "type": "Microsoft.Insights/diagnosticSettings",
+      "type": "Microsoft.Logic/workflows/providers/diagnosticSettings",
       "apiVersion": "2021-05-01-preview",
-      "name": "[concat(variables('sentinelConnectorName'), '-diagnostics')]",
-      "scope": "[resourceId('Microsoft.Logic/workflows', variables('sentinelConnectorName'))]",
+      "name": "[concat(variables('sentinelConnectorName'), '/Microsoft.Insights/diagnostics')]",
       "properties": {
         "workspaceId": "[parameters('ctiWorkspaceId')]",
         "logs": [
@@ -924,10 +922,9 @@
       ]
     },
     {
-      "type": "Microsoft.Insights/diagnosticSettings",
+      "type": "Microsoft.Logic/workflows/providers/diagnosticSettings", 
       "apiVersion": "2021-05-01-preview",
-      "name": "[concat(variables('entraConnectorName'), '-diagnostics')]",
-      "scope": "[resourceId('Microsoft.Logic/workflows', variables('entraConnectorName'))]",
+      "name": "[concat(variables('entraConnectorName'), '/Microsoft.Insights/diagnostics')]",
       "properties": {
         "workspaceId": "[parameters('ctiWorkspaceId')]",
         "logs": [
@@ -956,10 +953,9 @@
       ]
     },
     {
-      "type": "Microsoft.Insights/diagnosticSettings",
+      "type": "Microsoft.Logic/workflows/providers/diagnosticSettings",
       "apiVersion": "2021-05-01-preview",
-      "name": "[concat(variables('exoConnectorName'), '-diagnostics')]",
-      "scope": "[resourceId('Microsoft.Logic/workflows', variables('exoConnectorName'))]",
+      "name": "[concat(variables('exoConnectorName'), '/Microsoft.Insights/diagnostics')]",
       "properties": {
         "workspaceId": "[parameters('ctiWorkspaceId')]",
         "logs": [

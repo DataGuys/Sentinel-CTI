@@ -63,7 +63,7 @@ resource threatIntelSyncLogicApp 'Microsoft.Logic/workflows@2019-05-01' = {
               timerange: 'Last 30 minutes'
             }
           }
-        },
+        }
         Process_IP_Indicators: {
           runAfter: {
             Get_New_Indicators: ['Succeeded']
@@ -74,7 +74,7 @@ resource threatIntelSyncLogicApp 'Microsoft.Logic/workflows@2019-05-01' = {
             and: [
               {
                 equals: [
-                  '@item()[2]',
+                  '@item()[2]'
                   'ip-addr'
                 ]
               }
@@ -99,8 +99,7 @@ resource threatIntelSyncLogicApp 'Microsoft.Logic/workflows@2019-05-01' = {
               }
             }
           }
-        },
-        Process_Domain_Indicators: {
+        }, Process_Domain_Indicators: {
           runAfter: {
             Process_IP_Indicators: ['Succeeded']
           }
@@ -110,7 +109,7 @@ resource threatIntelSyncLogicApp 'Microsoft.Logic/workflows@2019-05-01' = {
             and: [
               {
                 equals: [
-                  '@item()[2]',
+                  '@item()[2]'
                   'domain-name'
                 ]
               }
@@ -135,7 +134,7 @@ resource threatIntelSyncLogicApp 'Microsoft.Logic/workflows@2019-05-01' = {
               }
             }
           }
-        },
+        }
         Process_URL_Indicators: {
           runAfter: {
             Process_Domain_Indicators: ['Succeeded']
@@ -146,7 +145,7 @@ resource threatIntelSyncLogicApp 'Microsoft.Logic/workflows@2019-05-01' = {
             and: [
               {
                 equals: [
-                  '@item()[2]',
+                  '@item()[2]'
                   'url'
                 ]
               }
@@ -171,7 +170,7 @@ resource threatIntelSyncLogicApp 'Microsoft.Logic/workflows@2019-05-01' = {
               }
             }
           }
-        },
+        }
         Process_FileHash_Indicators: {
           runAfter: {
             Process_URL_Indicators: ['Succeeded']
@@ -183,28 +182,16 @@ resource threatIntelSyncLogicApp 'Microsoft.Logic/workflows@2019-05-01' = {
               {
                 or: [
                   {
-                    equals: [
-                      '@item()[2]',
-                      'file'
-                    ]
-                  },
+                    equals: ['@item()[2]', 'file']
+                  }
                   {
-                    equals: [
-                      '@item()[2]',
-                      'file-sha256'
-                    ]
-                  },
+                    equals: ['@item()[2]', 'file-sha256']
+                  }
                   {
-                    equals: [
-                      '@item()[2]',
-                      'file-sha1'
-                    ]
-                  },
+                    equals: ['@item()[2]', 'file-sha1']
+                  }
                   {
-                    equals: [
-                      '@item()[2]',
-                      'file-md5'
-                    ]
+                    equals: ['@item()[2]', 'file-md5']
                   }
                 ]
               }

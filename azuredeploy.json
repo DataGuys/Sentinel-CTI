@@ -26,7 +26,7 @@
     },
     "location": {
       "type": "string",
-      "defaultValue": "[resourceGroup().location]",
+      "defaultValue": "eastus",
       "metadata": {
         "description": "Azure region for deploying resources",
         "displayName": "Deployment Location"
@@ -122,6 +122,20 @@
         "Standard",
         "Premium"
       ]
+    },
+    "enableMDTI": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable Microsoft Defender Threat Intelligence integration"
+      }
+    },
+    "enableSecurityCopilot": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable Microsoft Security Copilot integration"
+      }
     }
   },
   "variables": {
@@ -139,7 +153,7 @@
       "ctiTables": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/cti-tables.json",
       "inoculationEngine": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/v5-inoculation-engine.json",
       "microsoft": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/microsoft-connectors.json",
-      "aws": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/aws-connectors.json",
+      "aws": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTi/refs/heads/main/modules/aws-connectors.json",
       "gcp": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/gcp-connectors.json",
       "network": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/network-connectors.json",
       "edr": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/edr-connectors.json",
@@ -160,7 +174,16 @@
         "criticalApprovalTimeMinutes": 5
       }
     },
-    "selectedSla": "[variables('slaSettings')[parameters('slaLevel')]]"
+    "selectedSla": "[variables('slaSettings')[parameters('slaLevel')]]",
+    "clientSecretName": "CTI-APP-SECRET",
+    "diagnosticSettingsRetentionDays": 30,
+    "dceNameForCopilot": "[concat(parameters('prefix'), '-v5-copilot-', parameters('environment'))]",
+    "securityApiBaseUrl": "https://api.security.microsoft.com",
+    "tags": {
+      "project": "CentralThreatIntelligence",
+      "environment": "[parameters('environment')]",
+      "version": "5.0"
+    }
   },
   "resources": [
     {
@@ -276,6 +299,24 @@
           },
           "sla": {
             "value": "[variables('selectedSla')]"
+          },
+          "clientSecretName": {
+            "value": "[variables('clientSecretName')]"
+          },
+          "diagnosticSettingsRetentionDays": {
+            "value": "[variables('diagnosticSettingsRetentionDays')]"
+          },
+          "enableMDTI": {
+            "value": "[parameters('enableMDTI')]"
+          },
+          "enableSecurityCopilot": {
+            "value": "[parameters('enableSecurityCopilot')]"
+          },
+          "dceNameForCopilot": {
+            "value": "[variables('dceNameForCopilot')]"
+          },
+          "securityApiBaseUrl": {
+            "value": "[variables('securityApiBaseUrl')]"
           }
         }
       }

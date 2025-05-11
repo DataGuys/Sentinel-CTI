@@ -126,7 +126,7 @@ resource mdtiConnectorLogicApp 'Microsoft.Logic/workflows@2019-05-01' = if (enab
             and: [
               {
                 equals: [
-                  '@item().indicatorType',
+                  '@item().indicatorType'
                   'IpAddress'
                 ]
               }
@@ -162,7 +162,7 @@ resource mdtiConnectorLogicApp 'Microsoft.Logic/workflows@2019-05-01' = if (enab
             and: [
               {
                 equals: [
-                  '@item().indicatorType',
+                  '@item().indicatorType'
                   'DomainName'
                 ]
               }
@@ -198,7 +198,7 @@ resource mdtiConnectorLogicApp 'Microsoft.Logic/workflows@2019-05-01' = if (enab
             and: [
               {
                 equals: [
-                  '@item().indicatorType',
+                  '@item().indicatorType'
                   'Url'
                 ]
               }
@@ -236,19 +236,17 @@ resource mdtiConnectorLogicApp 'Microsoft.Logic/workflows@2019-05-01' = if (enab
                 or: [
                   {
                     equals: [
-                      '@item().indicatorType',
+                      '@item().indicatorType'
                       'FileSha256'
                     ]
-                  },
-                  {
+                  }, {
                     equals: [
-                      '@item().indicatorType',
+                      '@item().indicatorType'
                       'FileSha1'
                     ]
-                  },
-                  {
+                  }, {
                     equals: [
-                      '@item().indicatorType',
+                      '@item().indicatorType'
                       'FileMd5'
                     ]
                   }

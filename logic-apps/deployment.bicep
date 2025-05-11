@@ -57,7 +57,7 @@ module defenderConnector 'defender-connector.bicep' = {
 }
 
 // MDTI Connector (conditional)
-module mdtiConnector 'mdti-connector.bicep' = {
+module mdtiConnector 'mdti-connector.bicep' = if (enableMDTI) {
   name: 'mdtiConnector'
   params: {
     location: location
@@ -72,7 +72,6 @@ module mdtiConnector 'mdti-connector.bicep' = {
     clientSecretName: clientSecretName
     appClientId: appClientId
     tenantId: tenantId
-    enableMDTI: enableMDTI
     tags: tags
   }
   dependsOn: [
@@ -165,7 +164,7 @@ module threatFeedSync 'threatfeed-sync.bicep' = {
   name: 'threatFeedSync'
   params: {
     location: location
-    threatFeedSyncName: 'CTI-ThreatFeedSync'
+    syncConnectorName: 'CTI-ThreatFeedSync'
     managedIdentityId: managedIdentityId
     logAnalyticsConnectionId: logAnalyticsConnectionId
     logAnalyticsQueryConnectionId: logAnalyticsQueryConnectionId
@@ -188,5 +187,5 @@ output logicAppNames object = {
   exoConnector: exoConnector.outputs.exoConnectorName
   securityCopilotConnector: enableSecurityCopilot ? securityCopilotConnector.outputs.securityCopilotConnectorName : ''
   housekeeping: housekeeping.outputs.housekeepingName
-  threatFeedSync: threatFeedSync.outputs.threatFeedSyncName
+  threatFeedSync: threatFeedSync.outputs.threatIntelSyncName
 }
