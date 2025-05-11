@@ -214,11 +214,6 @@
                   "subscriptions": "[subscription().subscriptionId]",
                   "timerange": "Last hour"
                 }
-              },
-              "retryPolicy": {
-                "type": "fixed",
-                "count": "@parameters('maxRetryCount')",
-                "interval": "PT10S"
               }
             },
             "For_Each_Indicator": {
@@ -342,11 +337,6 @@
                   "subscriptions": "[subscription().subscriptionId]",
                   "timerange": "Last 2 hours"
                 }
-              },
-              "retryPolicy": {
-                "type": "fixed",
-                "count": "@parameters('maxRetryCount')",
-                "interval": "PT10S"
               }
             },
             "For_Each_Medium_Confidence_Indicator": {
@@ -560,11 +550,6 @@
                   "subscriptions": "[subscription().subscriptionId]",
                   "timerange": "Last 6 hours"
                 }
-              },
-              "retryPolicy": {
-                "type": "fixed",
-                "count": "@parameters('maxRetryCount')",
-                "interval": "PT10S"
               }
             },
             "Process_Enrichment": {
