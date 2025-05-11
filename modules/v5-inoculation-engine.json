@@ -679,11 +679,11 @@
       "location": "[parameters('location')]",
       "tags": "[union(parameters('tags'), createObject('hidden-title', 'CTI Dashboard V5'))]",
       "properties": {
-        "lenses": {
-          "0": {
+        "lenses": [
+          {
             "order": 0,
-            "parts": {
-              "0": {
+            "parts": [
+              {
                 "position": {
                   "x": 0,
                   "y": 0,
@@ -705,9 +705,9 @@
                   }
                 }
               }
-            }
+            ]
           }
-        },
+        ],
         "metadata": {
           "model": {
             "timeRange": {
