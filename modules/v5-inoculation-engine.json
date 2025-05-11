@@ -604,21 +604,13 @@
           {
             "category": "WorkflowRuntime",
             "enabled": true,
-            "retentionPolicy": {
-              "days": "[parameters('diagnosticSettingsRetentionDays')]",
-              "enabled": true
-            }
-          }
+        }
         ],
         "metrics": [
           {
             "category": "AllMetrics",
             "enabled": true,
-            "retentionPolicy": {
-              "days": "[parameters('diagnosticSettingsRetentionDays')]",
-              "enabled": true
-            }
-          }
+        }
         ]
       },
       "dependsOn": [
