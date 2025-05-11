@@ -26,7 +26,7 @@
     },
     "location": {
       "type": "string",
-      "defaultValue": "eastus",
+      "defaultValue": "westus",
       "metadata": {
         "description": "Azure region for deploying resources",
         "displayName": "Deployment Location"
@@ -139,12 +139,12 @@
     }
   },
   "variables": {
-    "workspaceName": "[concat(parameters('prefix'), '-cti-', parameters('environment'), '-workspace')]",
-    "keyVaultName": "[concat(parameters('prefix'), '-cti-', parameters('environment'), '-kv')]",
-    "managedIdentityName": "[concat(parameters('prefix'), '-cti-', parameters('environment'), '-mi')]",
+    "workspaceName": "[concat(parameters('prefix'), parameters('environment'), '-workspace')]",
+    "keyVaultName": "[concat(parameters('prefix'), parameters('environment'), '-kv')]",
+    "managedIdentityName": "[concat(parameters('prefix'), parameters('environment'), '-mi')]",
     "resourceTags": {
       "Environment": "[parameters('environment')]",
-      "Solution": "Central Threat Intelligence V5",
+      "Solution": "Central Threat Intelligence",
       "DeployedBy": "ARM Template",
       "Version": "5.0.0"
     },
