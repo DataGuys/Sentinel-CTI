@@ -1,629 +1,749 @@
 {
-  "$schema": "https://schema.management.azure.com/schemas/2020-09-01/dashboard.json",
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
-  "name": "[variables('dashboardName')]",
-  "location": "[parameters('location')]",
-  "tags": "[union(parameters('tags'), createObject('hidden-title', 'CTI Inoculation Engine Operational Dashboard', 'Component', 'Monitoring', 'Version', 'V5'))]",
-  "properties": {
-    "lenses": {
-      "0": {
-        "order": 0,
-        "parts": {
-          "0": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "colSpan": 18,
-              "rowSpan": 1
+  "parameters": {
+    "prefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Prefix for resource names"
+      }
+    },
+    "environment": {
+      "type": "string",
+      "metadata": {
+        "description": "Environment (prod, dev, test)"
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for resources"
+      }
+    },
+    "managedIdentityId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the managed identity"
+      }
+    },
+    "logAnalyticsConnectionId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Log Analytics Data Collector connection"
+      }
+    },
+    "logAnalyticsQueryConnectionId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Log Analytics Query connection"
+      }
+    },
+    "ctiWorkspaceName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Log Analytics workspace"
+      }
+    },
+    "ctiWorkspaceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Log Analytics workspace"
+      }
+    },
+    "keyVaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Key Vault"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "metadata": {
+        "description": "Tags to apply to resources"
+      }
+    },
+    "enableTelemetry": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable system telemetry"
+      }
+    },
+    "enableAutoScaling": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable auto-scaling for Logic Apps"
+      }
+    },
+    "maxRetryCount": {
+      "type": "int",
+      "defaultValue": 3,
+      "metadata": {
+        "description": "Maximum retry count for operations"
+      }
+    },
+    "sla": {
+      "type": "object",
+      "metadata": {
+        "description": "SLA configuration"
+      }
+    },
+    "clientSecretName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the client secret in Key Vault"
+      }
+    },
+    "diagnosticSettingsRetentionDays": {
+      "type": "int",
+      "metadata": {
+        "description": "Retention period for diagnostic settings"
+      }
+    },
+    "enableMDTI": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable Microsoft Defender Threat Intelligence integration"
+      }
+    },
+    "enableSecurityCopilot": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable Microsoft Security Copilot integration"
+      }
+    },
+    "dceNameForCopilot": {
+      "type": "string",
+      "metadata": {
+        "description": "Data Collection Endpoint name for Security Copilot"
+      }
+    },
+    "securityApiBaseUrl": {
+      "type": "string",
+      "defaultValue": "https://api.securitycenter.microsoft.com",
+      "metadata": {
+        "description": "Security API base URL"
+      }
+    }
+  },
+  "variables": {
+    "inoculationEngineName": "[concat(parameters('prefix'), '-inoculation-', parameters('environment'))]",
+    "triageEngineName": "[concat(parameters('prefix'), '-triage-', parameters('environment'))]",
+    "approvalWorkflowName": "[concat(parameters('prefix'), '-approval-', parameters('environment'))]",
+    "enrichmentEngineName": "[concat(parameters('prefix'), '-enrichment-', parameters('environment'))]",
+    "dashboardName": "[concat(parameters('prefix'), '-cti-dashboard-', parameters('environment'))]",
+    "keyvaultConnectionName": "[concat('keyvault-connection-', parameters('environment'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Web/connections",
+      "apiVersion": "2016-06-01",
+      "name": "[variables('keyvaultConnectionName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "displayName": "Key Vault Connection",
+        "api": {
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/keyvault')]"
+        },
+        "parameterValues": {
+          "vaultName": "[parameters('keyVaultName')]"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[variables('inoculationEngineName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[parameters('managedIdentityId')]": {}
+        }
+      },
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
             },
-            "metadata": {
-              "inputs": [],
-              "type": "Extension/HubsExtension/PartType/MarkdownPart",
-              "settings": {
-                "content": {
-                  "settings": {
-                    "content": "# Central Threat Intelligence v5.0 - Operational Dashboard\nThis dashboard provides real-time monitoring of the threat intelligence processing pipeline, distribution status, and system health.",
-                    "title": "",
-                    "subtitle": "",
-                    "markdownSource": 1
-                  }
-                }
-              }
+            "workspaceName": {
+              "defaultValue": "[parameters('ctiWorkspaceName')]",
+              "type": "String"
+            },
+            "maxRetryCount": {
+              "defaultValue": "[parameters('maxRetryCount')]",
+              "type": "Int"
             }
           },
-          "1": {
-            "position": {
-              "x": 0,
-              "y": 1,
-              "colSpan": 6,
-              "rowSpan": 4
-            },
-            "metadata": {
-              "inputs": [
-                {
-                  "name": "resourceTypeMode",
-                  "isOptional": true,
-                  "value": "workspace"
-                },
-                {
-                  "name": "ComponentId",
-                  "isOptional": true,
-                  "value": {
-                    "SubscriptionId": "[subscription().subscriptionId]",
-                    "ResourceGroup": "[resourceGroup().name]",
-                    "Name": "[parameters('ctiWorkspaceName')]",
-                    "ResourceId": "[parameters('ctiWorkspaceId')]"
+          "triggers": {
+            "Recurrence": {
+              "recurrence": {
+                "frequency": "Hour",
+                "interval": 1
+              },
+              "type": "Recurrence"
+            }
+          },
+          "actions": {
+            "Get_High_Confidence_Indicators": {
+              "runAfter": {},
+              "type": "ApiConnection",
+              "inputs": {
+                "body": "CTI_ThreatIntelIndicator_CL \n| where Confidence_d >= 80 and Active_b == true\n| where TimeGenerated > ago(1h)\n| project Type_s, Value_s, Confidence_d, ThreatType_s, Description_s, Action_s, IndicatorId_g, ValidUntil_t\n| limit 500",
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azuremonitorlogs']['connectionId']"
                   }
                 },
-                {
-                  "name": "Query",
-                  "isOptional": true,
-                  "value": "CTI_TelemetryData_CL | where TimeGenerated > ago(24h) | summarize TotalProcessed=sum(Column1), SuccessCount=sum(Column2), ErrorCount=sum(Column3) by bin(TimeGenerated, 1h) | render timechart"
-                },
-                {
-                  "name": "TimeRange",
-                  "isOptional": true,
-                  "value": "P1D"
-                },
-                {
-                  "name": "Dimensions",
-                  "isOptional": true,
-                  "value": {
-                    "xAxis": {
-                      "name": "TimeGenerated",
-                      "type": "datetime"
+                "method": "post",
+                "path": "/queryData",
+                "queries": {
+                  "resourcegroups": "[resourceGroup().name]",
+                  "resourcename": "@{parameters('workspaceName')}",
+                  "resourcetype": "Log Analytics Workspace",
+                  "subscriptions": "[subscription().subscriptionId]",
+                  "timerange": "Last hour"
+                }
+              },
+              "retryPolicy": {
+                "type": "fixed",
+                "count": "@parameters('maxRetryCount')",
+                "interval": "PT10S"
+              }
+            },
+            "For_Each_Indicator": {
+              "foreach": "@body('Get_High_Confidence_Indicators').tables[0].rows",
+              "actions": {
+                "Distribute_Indicator": {
+                  "runAfter": {},
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "body": "@{utcNow()},@{guid()},@{item()[6]},@{item()[1]},@{item()[0]},Auto-Distribution,Success,Indicator processed by inoculation engine,@{utcNow()}",
+                    "headers": {
+                      "Log-Type": "CTI_DistributionHistory_CL"
                     },
-                    "yAxis": [
-                      {
-                        "name": "TotalProcessed",
-                        "type": "real"
-                      },
-                      {
-                        "name": "SuccessCount",
-                        "type": "real"
-                      },
-                      {
-                        "name": "ErrorCount",
-                        "type": "real"
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['azureloganalyticsdatacollector']['connectionId']"
                       }
-                    ],
-                    "splitBy": [],
-                    "aggregation": "Sum"
+                    },
+                    "method": "post",
+                    "path": "/api/logs"
                   }
-                },
-                {
-                  "name": "Version",
-                  "isOptional": true,
-                  "value": "1.0"
-                },
-                {
-                  "name": "PartId",
-                  "isOptional": true,
-                  "value": "Indicator Processing Status"
-                },
-                {
-                  "name": "PartTitle",
-                  "isOptional": true,
-                  "value": "Indicator Processing Metrics"
                 }
-              ],
-              "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
-              "settings": {}
-            }
-          },
-          "2": {
-            "position": {
-              "x": 6,
-              "y": 1,
-              "colSpan": 6,
-              "rowSpan": 4
-            },
-            "metadata": {
-              "inputs": [
-                {
-                  "name": "resourceTypeMode",
-                  "isOptional": true,
-                  "value": "workspace"
-                },
-                {
-                  "name": "ComponentId",
-                  "isOptional": true,
-                  "value": {
-                    "SubscriptionId": "[subscription().subscriptionId]",
-                    "ResourceGroup": "[resourceGroup().name]",
-                    "Name": "[parameters('ctiWorkspaceName')]",
-                    "ResourceId": "[parameters('ctiWorkspaceId')]"
-                  }
-                },
-                {
-                  "name": "Query",
-                  "isOptional": true,
-                  "value": "CTI_TelemetryData_CL | where TimeGenerated > ago(24h) | summarize SuccessRate = (sum(Column2) * 100.0 / sum(Column1)) by bin(TimeGenerated, 1h) | render timechart"
-                },
-                {
-                  "name": "TimeRange",
-                  "isOptional": true,
-                  "value": "P1D"
-                },
-                {
-                  "name": "Version",
-                  "isOptional": true,
-                  "value": "1.0"
-                },
-                {
-                  "name": "PartId",
-                  "isOptional": true,
-                  "value": "Success Rate Trend"
-                },
-                {
-                  "name": "PartTitle",
-                  "isOptional": true,
-                  "value": "Distribution Success Rate (%)"
-                }
-              ],
-              "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
-              "settings": {}
-            }
-          },
-          "3": {
-            "position": {
-              "x": 12,
-              "y": 1,
-              "colSpan": 6,
-              "rowSpan": 4
-            },
-            "metadata": {
-              "inputs": [
-                {
-                  "name": "resourceTypeMode",
-                  "isOptional": true,
-                  "value": "workspace"
-                },
-                {
-                  "name": "ComponentId",
-                  "isOptional": true,
-                  "value": {
-                    "SubscriptionId": "[subscription().subscriptionId]",
-                    "ResourceGroup": "[resourceGroup().name]",
-                    "Name": "[parameters('ctiWorkspaceName')]",
-                    "ResourceId": "[parameters('ctiWorkspaceId')]"
-                  }
-                },
-                {
-                  "name": "Query",
-                  "isOptional": true,
-                  "value": "CTI_ProcessingErrors_CL | where TimeGenerated > ago(24h) | summarize Count=count() by ErrorType_s | top 5 by Count desc | render piechart"
-                },
-                {
-                  "name": "TimeRange",
-                  "isOptional": true,
-                  "value": "P1D"
-                },
-                {
-                  "name": "Version",
-                  "isOptional": true,
-                  "value": "1.0"
-                },
-                {
-                  "name": "PartId",
-                  "isOptional": true,
-                  "value": "Top Error Types"
-                },
-                {
-                  "name": "PartTitle",
-                  "isOptional": true,
-                  "value": "Top Error Types (Last 24h)"
-                }
-              ],
-              "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
-              "settings": {}
-            }
-          },
-          "4": {
-            "position": {
-              "x": 0,
-              "y": 5,
-              "colSpan": 18,
-              "rowSpan": 1
-            },
-            "metadata": {
-              "inputs": [],
-              "type": "Extension/HubsExtension/PartType/MarkdownPart",
-              "settings": {
-                "content": {
-                  "settings": {
-                    "content": "## System Health",
-                    "title": "",
-                    "subtitle": "",
-                    "markdownSource": 1
-                  }
+              },
+              "runAfter": {
+                "Get_High_Confidence_Indicators": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Foreach",
+              "runtimeConfiguration": {
+                "concurrency": {
+                  "repetitions": 10
                 }
               }
             }
-          },
-          "5": {
-            "position": {
-              "x": 0,
-              "y": 6,
-              "colSpan": 8,
-              "rowSpan": 3
-            },
-            "metadata": {
-              "inputs": [
-                {
-                  "name": "resourceTypeMode",
-                  "isOptional": true,
-                  "value": "workspace"
-                },
-                {
-                  "name": "ComponentId",
-                  "isOptional": true,
-                  "value": {
-                    "SubscriptionId": "[subscription().subscriptionId]",
-                    "ResourceGroup": "[resourceGroup().name]",
-                    "Name": "[parameters('ctiWorkspaceName')]",
-                    "ResourceId": "[parameters('ctiWorkspaceId')]"
-                  }
-                },
-                {
-                  "name": "Query",
-                  "isOptional": true,
-                  "value": "// System health status\r\n// Logic App run status\r\nlet logicApps = dynamic([\"CTI-TAXII2-Connector\", \"CTI-DefenderXDR-Connector\", \"CTI-MDTI-Connector\", \"CTI-EntraID-Connector\", \"CTI-ExchangeOnline-Connector\", \"CTI-SecurityCopilot-Connector\", \"CTI-Housekeeping\", \"CTI-ThreatFeedSync\"]);\r\n\r\n// Get Logic App runs status\r\nlet workflowRuns = union \r\n    // Get recent workflow runs\r\n    (workspace(\"*\").WorkflowRuntime\r\n    | where TimeGenerated > ago(24h)\r\n    | where ResourceId contains \"Microsoft.Logic/workflows\" and Status in (\"Failed\", \"Succeeded\")\r\n    | extend ResourceName = tostring(split(ResourceId, \"/\")[8])\r\n    | extend isLogicApp = indexof(logicApps, ResourceName) != -1\r\n    | where isLogicApp\r\n    | project TimeGenerated, ResourceName, Status, startTime_t);\r\n\r\n// Process workflow status\r\nworkflowRuns\r\n| summarize LastRunStatus = arg_max(TimeGenerated, Status) by ResourceName\r\n| extend Status = iff(LastRunStatus == \"Failed\", \"Failed\", \"Healthy\")\r\n| project Component = ResourceName, Status\r\n| union (\r\n    // Add a row for workspace status - always healthy if query runs\r\n    datatable(Component:string, Status:string)[ \"Log Analytics Workspace\", \"Healthy\"]\r\n)\r\n| order by Component asc"
-                },
-                {
-                  "name": "TimeRange",
-                  "isOptional": true,
-                  "value": "P1D"
-                },
-                {
-                  "name": "Version",
-                  "isOptional": true,
-                  "value": "1.0"
-                },
-                {
-                  "name": "PartId",
-                  "isOptional": true,
-                  "value": "System Component Health"
-                },
-                {
-                  "name": "PartTitle",
-                  "isOptional": true,
-                  "value": "System Component Health"
-                }
-              ],
-              "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
-              "settings": {}
-            }
-          },
-          "6": {
-            "position": {
-              "x": 8,
-              "y": 6,
-              "colSpan": 10,
-              "rowSpan": 3
-            },
-            "metadata": {
-              "inputs": [
-                {
-                  "name": "resourceTypeMode",
-                  "isOptional": true,
-                  "value": "workspace"
-                },
-                {
-                  "name": "ComponentId",
-                  "isOptional": true,
-                  "value": {
-                    "SubscriptionId": "[subscription().subscriptionId]",
-                    "ResourceGroup": "[resourceGroup().name]",
-                    "Name": "[parameters('ctiWorkspaceName')]",
-                    "ResourceId": "[parameters('ctiWorkspaceId')]"
-                  }
-                },
-                {
-                  "name": "Query",
-                  "isOptional": true,
-                  "value": "// Logic App run history\r\nlet logicApps = dynamic([\"CTI-TAXII2-Connector\", \"CTI-DefenderXDR-Connector\", \"CTI-MDTI-Connector\", \"CTI-EntraID-Connector\", \"CTI-ExchangeOnline-Connector\", \"CTI-SecurityCopilot-Connector\", \"CTI-Housekeeping\", \"CTI-ThreatFeedSync\"]);\r\n\r\n// Get Logic App runs\r\nworkspace(\"*\").WorkflowRuntime\r\n| where TimeGenerated > ago(24h)\r\n| where ResourceId contains \"Microsoft.Logic/workflows\"\r\n| extend ResourceName = tostring(split(ResourceId, \"/\")[8])\r\n| extend isLogicApp = indexof(logicApps, ResourceName) != -1\r\n| where isLogicApp\r\n| project TimeGenerated, Connector = ResourceName, Status, RunId = WorkflowRunId\r\n| order by TimeGenerated desc\r\n| take 10"
-                },
-                {
-                  "name": "TimeRange",
-                  "isOptional": true,
-                  "value": "P1D"
-                },
-                {
-                  "name": "Version",
-                  "isOptional": true,
-                  "value": "1.0"
-                },
-                {
-                  "name": "PartId",
-                  "isOptional": true,
-                  "value": "Recent Connector Runs"
-                },
-                {
-                  "name": "PartTitle",
-                  "isOptional": true,
-                  "value": "Recent Connector Runs"
-                }
-              ],
-              "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
-              "settings": {}
-            }
-          },
-          "7": {
-            "position": {
-              "x": 0,
-              "y": 9,
-              "colSpan": 18,
-              "rowSpan": 1
-            },
-            "metadata": {
-              "inputs": [],
-              "type": "Extension/HubsExtension/PartType/MarkdownPart",
-              "settings": {
-                "content": {
-                  "settings": {
-                    "content": "## Distribution Status",
-                    "title": "",
-                    "subtitle": "",
-                    "markdownSource": 1
-                  }
-                }
+          }
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "azureloganalyticsdatacollector": {
+                "connectionId": "[parameters('logAnalyticsConnectionId')]",
+                "connectionName": "azureloganalyticsdatacollector",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azureloganalyticsdatacollector')]"
+              },
+              "azuremonitorlogs": {
+                "connectionId": "[parameters('logAnalyticsQueryConnectionId')]",
+                "connectionName": "azuremonitorlogs",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azuremonitorlogs')]"
+              },
+              "keyvault": {
+                "connectionId": "[resourceId('Microsoft.Web/connections', variables('keyvaultConnectionName'))]",
+                "connectionName": "keyvault",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/keyvault')]"
               }
             }
-          },
-          "8": {
-            "position": {
-              "x": 0,
-              "y": 10,
-              "colSpan": 9,
-              "rowSpan": 4
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/connections', variables('keyvaultConnectionName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[variables('triageEngineName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[parameters('managedIdentityId')]": {}
+        }
+      },
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
             },
-            "metadata": {
-              "inputs": [
-                {
-                  "name": "resourceTypeMode",
-                  "isOptional": true,
-                  "value": "workspace"
-                },
-                {
-                  "name": "ComponentId",
-                  "isOptional": true,
-                  "value": {
-                    "SubscriptionId": "[subscription().subscriptionId]",
-                    "ResourceGroup": "[resourceGroup().name]",
-                    "Name": "[parameters('ctiWorkspaceName')]",
-                    "ResourceId": "[parameters('ctiWorkspaceId')]"
-                  }
-                },
-                {
-                  "name": "Query",
-                  "isOptional": true,
-                  "value": "// Distribution of indicators by target product\r\nunion \r\n(CTI_IPIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"IP\", Value = IPAddress_s, Distribution = split(DistributionTargets_s, \", \")),\r\n(CTI_DomainIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"Domain\", Value = Domain_s, Distribution = split(DistributionTargets_s, \", \")),\r\n(CTI_URLIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"URL\", Value = URL_s, Distribution = split(DistributionTargets_s, \", \")),\r\n(CTI_FileHashIndicators_CL\r\n| where Active_b == true\r\n| extend Type = \"File Hash\", Value = coalesce(SHA256_s, SHA1_s, MD5_s), Distribution = split(DistributionTargets_s, \", \"))\r\n| mv-expand Target = Distribution\r\n| summarize Count = count() by tostring(Target), Type\r\n| where isnotempty(Target)\r\n| order by Count desc"
-                },
-                {
-                  "name": "TimeRange",
-                  "isOptional": true,
-                  "value": "P1D"
-                },
-                {
-                  "name": "Version",
-                  "isOptional": true,
-                  "value": "1.0"
-                },
-                {
-                  "name": "PartId",
-                  "isOptional": true,
-                  "value": "Distribution by Target"
-                },
-                {
-                  "name": "PartTitle",
-                  "isOptional": true,
-                  "value": "Distribution by Target Platform"
-                }
-              ],
-              "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
-              "settings": {}
+            "workspaceName": {
+              "defaultValue": "[parameters('ctiWorkspaceName')]",
+              "type": "String"
+            },
+            "maxRetryCount": {
+              "defaultValue": "[parameters('maxRetryCount')]",
+              "type": "Int"
             }
           },
-          "9": {
-            "position": {
-              "x": 9,
-              "y": 10,
-              "colSpan": 9,
-              "rowSpan": 4
-            },
-            "metadata": {
-              "inputs": [
-                {
-                  "name": "resourceTypeMode",
-                  "isOptional": true,
-                  "value": "workspace"
-                },
-                {
-                  "name": "ComponentId",
-                  "isOptional": true,
-                  "value": {
-                    "SubscriptionId": "[subscription().subscriptionId]",
-                    "ResourceGroup": "[resourceGroup().name]",
-                    "Name": "[parameters('ctiWorkspaceName')]",
-                    "ResourceId": "[parameters('ctiWorkspaceId')]"
-                  }
-                },
-                {
-                  "name": "Query",
-                  "isOptional": true,
-                  "value": "// Distribution history\r\nCTI_DistributionHistory_CL\r\n| where TimeGenerated > ago(24h)\r\n| summarize SuccessCount = countif(Status_s == \"Success\"), ErrorCount = countif(Status_s == \"Error\"), WaitingCount = countif(Status_s == \"Waiting\") by TargetSystem_s\r\n| extend TotalAttempts = SuccessCount + ErrorCount + WaitingCount\r\n| project TargetSystem_s, SuccessCount, ErrorCount, WaitingCount, TotalAttempts, SuccessRate = iff(TotalAttempts > 0, 100.0 * SuccessCount / TotalAttempts, 0.0)\r\n| order by TotalAttempts desc"
-                },
-                {
-                  "name": "TimeRange",
-                  "isOptional": true,
-                  "value": "P1D"
-                },
-                {
-                  "name": "Version",
-                  "isOptional": true,
-                  "value": "1.0"
-                },
-                {
-                  "name": "PartId",
-                  "isOptional": true,
-                  "value": "Distribution History"
-                },
-                {
-                  "name": "PartTitle",
-                  "isOptional": true,
-                  "value": "Distribution Success Rate by Target (24h)"
-                }
-              ],
-              "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
-              "settings": {}
+          "triggers": {
+            "Recurrence": {
+              "recurrence": {
+                "frequency": "Hour",
+                "interval": 2
+              },
+              "type": "Recurrence"
             }
           },
-          "10": {
-            "position": {
-              "x": 0,
-              "y": 14,
-              "colSpan": 18,
-              "rowSpan": 1
-            },
-            "metadata": {
-              "inputs": [],
-              "type": "Extension/HubsExtension/PartType/MarkdownPart",
-              "settings": {
-                "content": {
-                  "settings": {
-                    "content": "## Approval Workflow Status",
-                    "title": "",
-                    "subtitle": "",
-                    "markdownSource": 1
+          "actions": {
+            "Get_Medium_Confidence_Indicators": {
+              "runAfter": {},
+              "type": "ApiConnection",
+              "inputs": {
+                "body": "CTI_ThreatIntelIndicator_CL \n| where Confidence_d between (50 .. 79) and Active_b == true\n| where TimeGenerated > ago(2h)\n| project Type_s, Value_s, Confidence_d, ThreatType_s, Description_s, Action_s, IndicatorId_g, ValidUntil_t\n| limit 100",
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azuremonitorlogs']['connectionId']"
                   }
+                },
+                "method": "post",
+                "path": "/queryData",
+                "queries": {
+                  "resourcegroups": "[resourceGroup().name]",
+                  "resourcename": "@{parameters('workspaceName')}",
+                  "resourcetype": "Log Analytics Workspace",
+                  "subscriptions": "[subscription().subscriptionId]",
+                  "timerange": "Last 2 hours"
                 }
+              },
+              "retryPolicy": {
+                "type": "fixed",
+                "count": "@parameters('maxRetryCount')",
+                "interval": "PT10S"
               }
-            }
-          },
-          "11": {
-            "position": {
-              "x": 0,
-              "y": 15,
-              "colSpan": 6,
-              "rowSpan": 4
             },
-            "metadata": {
-              "inputs": [
-                {
-                  "name": "resourceTypeMode",
-                  "isOptional": true,
-                  "value": "workspace"
-                },
-                {
-                  "name": "ComponentId",
-                  "isOptional": true,
-                  "value": {
-                    "SubscriptionId": "[subscription().subscriptionId]",
-                    "ResourceGroup": "[resourceGroup().name]",
-                    "Name": "[parameters('ctiWorkspaceName')]",
-                    "ResourceId": "[parameters('ctiWorkspaceId')]"
+            "For_Each_Medium_Confidence_Indicator": {
+              "foreach": "@body('Get_Medium_Confidence_Indicators').tables[0].rows",
+              "actions": {
+                "Enqueue_For_Approval": {
+                  "runAfter": {},
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "body": "@{utcNow()},@{guid()},@{item()[6]},@{item()[1]},@{item()[0]},Approval,Waiting,Waiting for approval,@{utcNow()}",
+                    "headers": {
+                      "Log-Type": "CTI_DistributionHistory_CL"
+                    },
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['azureloganalyticsdatacollector']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "path": "/api/logs"
                   }
-                },
-                {
-                  "name": "Query",
-                  "isOptional": true,
-                  "value": "// Approval workflow stats\r\nCTI_DistributionHistory_CL\r\n| where TimeGenerated > ago(7d) and DistributionType_s has \"Approval\"\r\n| extend ApprovalType = iff(DistributionType_s has \"Critical\", \"Critical\", \"Standard\")\r\n| summarize count() by Status_s, ApprovalType\r\n| extend Status = case(\r\n    Status_s == \"Waiting\", \"Pending\",\r\n    Status_s == \"Success\" and ApprovalType == \"Critical\", \"Approved (Critical)\",\r\n    Status_s == \"Success\" and ApprovalType == \"Standard\", \"Approved (Standard)\",\r\n    Status_s == \"Error\", \"Error\",\r\n    \"Other\"\r\n)\r\n| project Status, Count=count_\r\n| order by Count desc"
-                },
-                {
-                  "name": "TimeRange",
-                  "isOptional": true,
-                  "value": "P7D"
-                },
-                {
-                  "name": "Version",
-                  "isOptional": true,
-                  "value": "1.0"
-                },
-                {
-                  "name": "PartId",
-                  "isOptional": true,
-                  "value": "Approval Stats"
-                },
-                {
-                  "name": "PartTitle",
-                  "isOptional": true,
-                  "value": "Approval Workflow Status (7d)"
                 }
-              ],
-              "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
-              "settings": {}
+              },
+              "runAfter": {
+                "Get_Medium_Confidence_Indicators": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Foreach"
             }
-          },
-          "12": {
-            "position": {
-              "x": 6,
-              "y": 15,
-              "colSpan": 12,
-              "rowSpan": 4
-            },
-            "metadata": {
-              "inputs": [
-                {
-                  "name": "resourceTypeMode",
-                  "isOptional": true,
-                  "value": "workspace"
-                },
-                {
-                  "name": "ComponentId",
-                  "isOptional": true,
-                  "value": {
-                    "SubscriptionId": "[subscription().subscriptionId]",
-                    "ResourceGroup": "[resourceGroup().name]",
-                    "Name": "[parameters('ctiWorkspaceName')]",
-                    "ResourceId": "[parameters('ctiWorkspaceId')]"
-                  }
-                },
-                {
-                  "name": "Query",
-                  "isOptional": true,
-                  "value": "// Pending approvals\r\nCTI_DistributionHistory_CL\r\n| where TimeGenerated > ago(7d)\r\n| where DistributionType_s has \"Approval\" and Status_s == \"Waiting\"\r\n| extend ApprovalType = iff(DistributionType_s has \"Critical\", \"Critical\", \"Standard\")\r\n| project TimeGenerated, IndicatorId_g, IndicatorValue_s, IndicatorType_s, ApprovalType, Details_s\r\n| order by TimeGenerated asc"
-                },
-                {
-                  "name": "TimeRange",
-                  "isOptional": true,
-                  "value": "P7D"
-                },
-                {
-                  "name": "Version",
-                  "isOptional": true,
-                  "value": "1.0"
-                },
-                {
-                  "name": "PartId",
-                  "isOptional": true,
-                  "value": "Pending Approvals"
-                },
-                {
-                  "name": "PartTitle",
-                  "isOptional": true,
-                  "value": "Pending Approval Requests"
-                }
-              ],
-              "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
-              "settings": {}
+          }
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "azureloganalyticsdatacollector": {
+                "connectionId": "[parameters('logAnalyticsConnectionId')]",
+                "connectionName": "azureloganalyticsdatacollector",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azureloganalyticsdatacollector')]"
+              },
+              "azuremonitorlogs": {
+                "connectionId": "[parameters('logAnalyticsQueryConnectionId')]",
+                "connectionName": "azuremonitorlogs",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azuremonitorlogs')]"
+              }
             }
           }
         }
       }
     },
-    "metadata": {
-      "model": {
-        "timeRange": {
-          "value": {
-            "relative": {
-              "duration": 24,
-              "timeUnit": 1
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[variables('approvalWorkflowName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[parameters('managedIdentityId')]": {}
+        }
+      },
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            },
+            "workspaceName": {
+              "defaultValue": "[parameters('ctiWorkspaceName')]",
+              "type": "String"
+            },
+            "approvalTimeMinutes": {
+              "defaultValue": "[parameters('sla').approvalTimeMinutes]",
+              "type": "Int"
             }
           },
-          "type": "MsPortalFx.Composition.Configuration.ValueTypes.TimeRange"
+          "triggers": {
+            "Recurrence": {
+              "recurrence": {
+                "frequency": "Hour",
+                "interval": 4
+              },
+              "type": "Recurrence"
+            }
+          },
+          "actions": {
+            "Get_Pending_Approvals": {
+              "runAfter": {},
+              "type": "ApiConnection",
+              "inputs": {
+                "body": "CTI_DistributionHistory_CL \n| where DistributionType_s has \"Approval\" and Status_s == \"Waiting\"\n| extend ApprovalType = iff(DistributionType_s has \"Critical\", \"Critical\", \"Standard\")\n| project OperationId_g, IndicatorId_g, IndicatorValue_s, IndicatorType_s, ApprovalType, Status_s, Timestamp_t",
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azuremonitorlogs']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/queryData",
+                "queries": {
+                  "resourcegroups": "[resourceGroup().name]",
+                  "resourcename": "@{parameters('workspaceName')}",
+                  "resourcetype": "Log Analytics Workspace",
+                  "subscriptions": "[subscription().subscriptionId]",
+                  "timerange": "Last 7 days"
+                }
+              }
+            },
+            "Process_Approvals": {
+              "runAfter": {
+                "Get_Pending_Approvals": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ApiConnection",
+              "inputs": {
+                "body": "// Approval system status record\n@{utcNow()},Approval system processed @{length(body('Get_Pending_Approvals').tables[0].rows)} pending approvals",
+                "headers": {
+                  "Log-Type": "CTI_TelemetryData_CL"
+                },
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azureloganalyticsdatacollector']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/api/logs"
+              }
+            }
+          }
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "azureloganalyticsdatacollector": {
+                "connectionId": "[parameters('logAnalyticsConnectionId')]",
+                "connectionName": "azureloganalyticsdatacollector",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azureloganalyticsdatacollector')]"
+              },
+              "azuremonitorlogs": {
+                "connectionId": "[parameters('logAnalyticsQueryConnectionId')]",
+                "connectionName": "azuremonitorlogs",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azuremonitorlogs')]"
+              }
+            }
+          }
         }
       }
+    },
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[variables('enrichmentEngineName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[parameters('managedIdentityId')]": {}
+        }
+      },
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            },
+            "workspaceName": {
+              "defaultValue": "[parameters('ctiWorkspaceName')]",
+              "type": "String"
+            },
+            "maxRetryCount": {
+              "defaultValue": "[parameters('maxRetryCount')]",
+              "type": "Int"
+            }
+          },
+          "triggers": {
+            "Recurrence": {
+              "recurrence": {
+                "frequency": "Hour",
+                "interval": 6
+              },
+              "type": "Recurrence"
+            }
+          },
+          "actions": {
+            "Get_Recent_Indicators": {
+              "runAfter": {},
+              "type": "ApiConnection",
+              "inputs": {
+                "body": "CTI_ThreatIntelIndicator_CL \n| where TimeGenerated > ago(6h)\n| where Active_b == true and isempty(EnrichmentStatus_s)\n| project Type_s, Value_s, IndicatorId_g\n| limit 100",
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azuremonitorlogs']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/queryData",
+                "queries": {
+                  "resourcegroups": "[resourceGroup().name]",
+                  "resourcename": "@{parameters('workspaceName')}",
+                  "resourcetype": "Log Analytics Workspace",
+                  "subscriptions": "[subscription().subscriptionId]",
+                  "timerange": "Last 6 hours"
+                }
+              },
+              "retryPolicy": {
+                "type": "fixed",
+                "count": "@parameters('maxRetryCount')",
+                "interval": "PT10S"
+              }
+            },
+            "Process_Enrichment": {
+              "runAfter": {
+                "Get_Recent_Indicators": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ApiConnection",
+              "inputs": {
+                "body": "// Enrichment system telemetry\n@{utcNow()},Enrichment processed @{length(body('Get_Recent_Indicators').tables[0].rows)} indicators",
+                "headers": {
+                  "Log-Type": "CTI_TelemetryData_CL"
+                },
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azureloganalyticsdatacollector']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/api/logs"
+              }
+            }
+          }
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "azureloganalyticsdatacollector": {
+                "connectionId": "[parameters('logAnalyticsConnectionId')]",
+                "connectionName": "azureloganalyticsdatacollector",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azureloganalyticsdatacollector')]"
+              },
+              "azuremonitorlogs": {
+                "connectionId": "[parameters('logAnalyticsQueryConnectionId')]",
+                "connectionName": "azuremonitorlogs",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azuremonitorlogs')]"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "name": "[concat(variables('inoculationEngineName'), '-diagnostics')]",
+      "scope": "[resourceId('Microsoft.Logic/workflows', variables('inoculationEngineName'))]",
+      "properties": {
+        "workspaceId": "[parameters('ctiWorkspaceId')]",
+        "logs": [
+          {
+            "category": "WorkflowRuntime",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": "[parameters('diagnosticSettingsRetentionDays')]",
+              "enabled": true
+            }
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": "[parameters('diagnosticSettingsRetentionDays')]",
+              "enabled": true
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Logic/workflows', variables('inoculationEngineName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "name": "[concat(variables('triageEngineName'), '-diagnostics')]",
+      "scope": "[resourceId('Microsoft.Logic/workflows', variables('triageEngineName'))]",
+      "properties": {
+        "workspaceId": "[parameters('ctiWorkspaceId')]",
+        "logs": [
+          {
+            "category": "WorkflowRuntime",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": "[parameters('diagnosticSettingsRetentionDays')]",
+              "enabled": true
+            }
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true,
+            "retentionPolicy": {
+              "days": "[parameters('diagnosticSettingsRetentionDays')]",
+              "enabled": true
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Logic/workflows', variables('triageEngineName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Portal/dashboards",
+      "apiVersion": "2020-09-01-preview",
+      "name": "[variables('dashboardName')]",
+      "location": "[parameters('location')]",
+      "tags": "[union(parameters('tags'), createObject('hidden-title', 'CTI Dashboard V5'))]",
+      "properties": {
+        "lenses": {
+          "0": {
+            "order": 0,
+            "parts": {
+              "0": {
+                "position": {
+                  "x": 0,
+                  "y": 0,
+                  "colSpan": 18,
+                  "rowSpan": 1
+                },
+                "metadata": {
+                  "inputs": [],
+                  "type": "Extension/HubsExtension/PartType/MarkdownPart",
+                  "settings": {
+                    "content": {
+                      "settings": {
+                        "content": "# Central Threat Intelligence v5.0 - Operational Dashboard\nThis dashboard provides real-time monitoring of the threat intelligence processing pipeline, distribution status, and system health.",
+                        "title": "",
+                        "subtitle": "",
+                        "markdownSource": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "metadata": {
+          "model": {
+            "timeRange": {
+              "value": {
+                "relative": {
+                  "duration": 24,
+                  "timeUnit": 1
+                }
+              },
+              "type": "MsPortalFx.Composition.Configuration.ValueTypes.TimeRange"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "inoculationEngineName": {
+      "type": "string",
+      "value": "[variables('inoculationEngineName')]"
+    },
+    "triageEngineName": {
+      "type": "string",
+      "value": "[variables('triageEngineName')]"
+    },
+    "approvalWorkflowName": {
+      "type": "string",
+      "value": "[variables('approvalWorkflowName')]"
+    },
+    "enrichmentEngineName": {
+      "type": "string",
+      "value": "[variables('enrichmentEngineName')]"
+    },
+    "dashboardId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Portal/dashboards', variables('dashboardName'))]"
     }
   }
 }
