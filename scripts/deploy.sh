@@ -162,88 +162,7 @@ if [[ $can_create_rg -eq 0 ]]; then
     exit 1
 fi
 
-# Step 1: Create app registration with improved error handling
-echo -e "\n${BLUE}Step 1: Creating app registration...${NC}"
-APP_NAME="${PREFIX}-v5-solution-${ENVIRONMENT}"
-echo "Creating app registration: ${APP_NAME}..."
 
-APP_CREATE=$(az ad app create --display-name "${APP_NAME}" 2>/dev/null)
-if [[ $? -ne 0 ]]; then
-    echo -e "${RED}❌ Failed to create application registration.${NC}"
-    echo -e "${YELLOW}Checking if app already exists...${NC}"
-    
-    EXISTING_APP=$(az ad app list --display-name "${APP_NAME}" --query "[0]" -o json)
-    if [[ -n "$EXISTING_APP" ]]; then
-        echo -e "${YELLOW}Application already exists. Using existing application.${NC}"
-        APP_ID=$(echo "$EXISTING_APP" | jq -r '.appId // .id')
-        OBJECT_ID=$(echo "$EXISTING_APP" | jq -r '.id // .objectId')
-    else
-        echo -e "${RED}Failed to create or find application. Check your permissions.${NC}"
-        exit 1
-    fi
-else
-    APP_ID=$(echo "$APP_CREATE" | jq -r '.appId // .id')
-    OBJECT_ID=$(echo "$APP_CREATE" | jq -r '.id // .objectId')
-fi
-
-if [ -z "$APP_ID" ]; then
-    echo -e "${RED}Failed to retrieve Application ID.${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}Application ID: ${APP_ID}${NC}"
-
-# Create service principal with improved error handling
-echo "Creating service principal for the application..."
-SP_CREATE=$(az ad sp create --id "$APP_ID" 2>/dev/null)
-if [[ $? -ne 0 ]]; then
-    echo -e "${YELLOW}Checking if service principal already exists...${NC}"
-    SP_EXISTS=$(az ad sp list --filter "appId eq '${APP_ID}'" --query "[0]" -o json)
-    if [[ -z "$SP_EXISTS" ]]; then
-        echo -e "${RED}Failed to create service principal.${NC}"
-        exit 1
-    else
-        echo -e "${YELLOW}Service principal already exists.${NC}"
-    fi
-else
-    echo -e "${GREEN}Service principal created successfully.${NC}"
-fi
-
-# Create client secret with improved error handling
-echo -e "${BLUE}Creating client secret...${NC}"
-SECRET_YEARS=2
-SECRET_RESULT=$(az ad app credential reset --id "$APP_ID" --years "$SECRET_YEARS" --query password -o tsv 2>/dev/null)
-
-if [ -z "$SECRET_RESULT" ]; then
-    echo -e "${RED}Failed to create client secret. Please check your permissions.${NC}"
-    exit 1
-fi
-
-# Save credentials to a file with enhanced security
-echo -e "${YELLOW}Saving credentials to secure file...${NC}"
-CREDS_FILE="cti-v5-app-credentials.env"
-echo "CLIENT_ID=${APP_ID}" > "$CREDS_FILE"
-echo "APP_OBJECT_ID=${OBJECT_ID}" >> "$CREDS_FILE"
-echo "APP_NAME=${APP_NAME}" >> "$CREDS_FILE"
-echo "CLIENT_SECRET=${SECRET_RESULT}" >> "$CREDS_FILE"
-chmod 600 "$CREDS_FILE"
-
-echo -e "${GREEN}Client secret created successfully and saved to ${CREDS_FILE} (restricted permissions)${NC}"
-
-# Add required API permissions
-echo -e "${BLUE}Adding required permissions...${NC}"
-
-# Microsoft Defender XDR
-echo -e "${YELLOW}Adding Microsoft Defender XDR permissions...${NC}"
-az ad app permission add --id "$APP_ID" --api 00000003-0000-0000-c000-000000000000 --api-permissions "ThreatIndicators.ReadWrite.OwnedBy=Role"
-
-# Microsoft Graph
-echo -e "${YELLOW}Adding Microsoft Graph permissions...${NC}"
-az ad app permission add --id "$APP_ID" --api 00000003-0000-0000-c000-000000000000 --api-permissions "User.Read.All=Role"
-
-# Microsoft Sentinel
-echo -e "${YELLOW}Adding Microsoft Sentinel permissions...${NC}"
-az ad app permission add --id "$APP_ID" --api 9ec59623-ce40-4dc8-a635-ed0275b5d58a --api-permissions "7e2fc5f2-d647-4926-89f6-f13ad2950560=Role"
 
 # Step 2: Deploy the main solution with enhanced error handling and dependency checks
 echo -e "\n${BLUE}Step 2: Deploying the CTI V5 solution...${NC}"
@@ -270,6 +189,10 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     fi
   fi
 done
+
+# Step 1: Create app registration with improved error handling
+echo -e "\n${BLUE}Step 1: Creating app registration...${NC}"
+curl -sL https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/scripts/create-cti-app-registration.sh | tr -d '\r' | bash
 
 # V5: Check if template exists before deployment
 echo -e "${YELLOW}Validating deployment template...${NC}"
