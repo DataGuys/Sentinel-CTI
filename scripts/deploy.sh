@@ -13,8 +13,8 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # V5: Proper repository references
-REPO_OWNER="SecurityOrg"
-REPO_NAME="CTI-V5"
+REPO_OWNER="DataGuys"
+REPO_NAME="Sentinel-CTI"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 RAW_BASE="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_BRANCH}"
 DEPLOY_NAME="cti-v5-$(date +%Y%m%d%H%M%S)"
@@ -24,7 +24,7 @@ echo -e "${BLUE}    Central Threat Intelligence V5 - Production Deployment Tool 
 echo -e "${BLUE}═════════════════════════════════════════════════════════════════${NC}"
 
 # Parse command line arguments
-LOCATION=""
+LOCATION="westus"
 PREFIX="cti"
 ENVIRONMENT="prod"
 TABLE_PLAN="Analytics"
