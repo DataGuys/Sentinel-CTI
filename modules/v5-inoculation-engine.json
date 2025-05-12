@@ -606,7 +606,7 @@
             "enabled": true,
             "retentionPolicy": {
               "days": "[parameters('diagnosticSettingsRetentionDays')]",
-              "enabled": true
+              "enabled": false
             }
           }
         ],
@@ -616,7 +616,7 @@
             "enabled": true,
             "retentionPolicy": {
               "days": "[parameters('diagnosticSettingsRetentionDays')]",
-              "enabled": true
+              "enabled": false
             }
           }
         ]
@@ -638,7 +638,7 @@
             "enabled": true,
             "retentionPolicy": {
               "days": "[parameters('diagnosticSettingsRetentionDays')]",
-              "enabled": true
+              "enabled": false
             }
           }
         ],
@@ -648,7 +648,7 @@
             "enabled": true,
             "retentionPolicy": {
               "days": "[parameters('diagnosticSettingsRetentionDays')]",
-              "enabled": true
+              "enabled": false
             }
           }
         ]
