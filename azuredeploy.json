@@ -79,7 +79,7 @@
       "allowedValues": [
         "Analytics",
         "Basic",
-        "Standard"
+        "Auxiliary"
       ]
     },
     "emailNotificationAddress": {
@@ -175,7 +175,7 @@
       }
     },
     "selectedSla": "[variables('slaSettings')[parameters('slaLevel')]]",
-    "clientSecretName": "CTI-APP-SECRET",
+    "clientSecretName": "APP-SECRET",
     "diagnosticSettingsRetentionDays": 30,
     "dceNameForCopilot": "[concat(parameters('prefix'), '-v5-copilot-', parameters('environment'))]",
     "securityApiBaseUrl": "https://api.security.microsoft.com",
