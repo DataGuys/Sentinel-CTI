@@ -152,10 +152,6 @@
       "coreBicepTemplate": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/core-resources.json",
       "ctiTables": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/cti-tables.json",
       "inoculationEngine": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/v5-inoculation-engine.json",
-      "microsoft": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/microsoft-connectors.json",
-      "aws": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTi/refs/heads/main/modules/aws-connectors.json",
-      "gcp": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/gcp-connectors.json",
-      "network": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/network-connectors.json",
       "edr": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/edr-connectors.json",
       "dashboards": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/dashboards.json",
       "telemetry": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/telemetry.json"
