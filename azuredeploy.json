@@ -152,7 +152,6 @@
       "coreBicepTemplate": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/core-resources.json",
       "ctiTables": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/cti-tables.json",
       "inoculationEngine": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/v5-inoculation-engine.json",
-      "edr": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/edr-connectors.json",
       "dashboards": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/dashboards.json",
       "telemetry": "https://raw.githubusercontent.com/DataGuys/Sentinel-CTI/refs/heads/main/modules/telemetry.json"
     },
@@ -320,100 +319,9 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2021-04-01",
-      "name": "networkConnectorsDeployment",
-      "condition": "[parameters('enableNetworkProtection')]",
-      "dependsOn": [
-        "inoculationEngineDeployment"
-      ],
-      "properties": {
-        "mode": "Incremental",
-        "templateLink": {
-          "uri": "[variables('deploymentUrls').network]",
-          "contentVersion": "1.0.0.0"
-        },
-        "parameters": {
-          "location": {
-            "value": "[parameters('location')]"
-          },
-          "managedIdentityId": {
-            "value": "[reference('coreResourcesDeployment').outputs.managedIdentityId.value]"
-          },
-          "logAnalyticsConnectionId": {
-            "value": "[reference('coreResourcesDeployment').outputs.logAnalyticsConnectionId.value]"
-          },
-          "logAnalyticsQueryConnectionId": {
-            "value": "[reference('coreResourcesDeployment').outputs.logAnalyticsQueryConnectionId.value]"
-          },
-          "ctiWorkspaceName": {
-            "value": "[reference('coreResourcesDeployment').outputs.workspaceName.value]"
-          },
-          "ctiWorkspaceId": {
-            "value": "[reference('coreResourcesDeployment').outputs.workspaceId.value]"
-          },
-          "keyVaultName": {
-            "value": "[reference('coreResourcesDeployment').outputs.keyVaultName.value]"
-          },
-          "tags": {
-            "value": "[union(variables('resourceTags'), createObject('Component', 'Network Connectors'))]"
-          },
-          "performanceTier": {
-            "value": "[parameters('performanceTier')]"
-          }
-        }
-      }
-    },
-    {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2021-04-01",
-      "name": "edrConnectorsDeployment",
-      "condition": "[parameters('enableEndpointProtection')]",
-      "dependsOn": [
-        "inoculationEngineDeployment"
-      ],
-      "properties": {
-        "mode": "Incremental",
-        "templateLink": {
-          "uri": "[variables('deploymentUrls').edr]",
-          "contentVersion": "1.0.0.0"
-        },
-        "parameters": {
-          "location": {
-            "value": "[parameters('location')]"
-          },
-          "managedIdentityId": {
-            "value": "[reference('coreResourcesDeployment').outputs.managedIdentityId.value]"
-          },
-          "logAnalyticsConnectionId": {
-            "value": "[reference('coreResourcesDeployment').outputs.logAnalyticsConnectionId.value]"
-          },
-          "logAnalyticsQueryConnectionId": {
-            "value": "[reference('coreResourcesDeployment').outputs.logAnalyticsQueryConnectionId.value]"
-          },
-          "ctiWorkspaceName": {
-            "value": "[reference('coreResourcesDeployment').outputs.workspaceName.value]"
-          },
-          "ctiWorkspaceId": {
-            "value": "[reference('coreResourcesDeployment').outputs.workspaceId.value]"
-          },
-          "keyVaultName": {
-            "value": "[reference('coreResourcesDeployment').outputs.keyVaultName.value]"
-          },
-          "tags": {
-            "value": "[union(variables('resourceTags'), createObject('Component', 'EDR Connectors'))]"
-          },
-          "performanceTier": {
-            "value": "[parameters('performanceTier')]"
-          }
-        }
-      }
-    },
-    {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2021-04-01",
       "name": "dashboardsDeployment",
       "dependsOn": [
-        "networkConnectorsDeployment",
-        "edrConnectorsDeployment"
+        "inoculationEngineDeployment"
       ],
       "properties": {
         "mode": "Incremental",
